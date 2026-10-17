@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Common Ground</title>
+  <meta name="description" content="Name a few things you love. Common Ground finds the one thing your whole group will enjoy.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <p class="eyebrow">One pick for everyone</p>
+      <h1 class="site-title">Common Ground</h1>
+      <p class="tagline">Each person names a few things they love. We find the one you will all enjoy.</p>
+    </div>
+  </header>
+
+  <main class="wrap" id="app">
+
+    <section class="step" id="step-kind" aria-labelledby="kind-heading">
+      <p class="step-number" aria-hidden="true">1</p>
+      <h2 class="step-heading" id="kind-heading">What are you picking?</h2>
+      <fieldset class="kind-fieldset">
+        <legend class="visually-hidden">Choose what to pick</legend>
+        <div class="kind-grid" id="kind-grid"></div>
+      </fieldset>
+      <div class="location-field" id="location-field" hidden>
+        <label class="field-label" for="location-input">City</label>
+        <input class="text-input" id="location-input" type="text" placeholder="e.g. Warsaw" autocomplete="off">
+      </div>
+    </section>
+
+    <section class="step" id="step-people" aria-labelledby="people-heading" hidden>
+      <p class="step-number" aria-hidden="true">2</p>
+      <h2 class="step-heading" id="people-heading">Who is in?</h2>
+      <p class="step-caption">Add 2 to 8 people, and 2 to 5 things each of them loves.</p>
+      <div class="example-chips" id="example-chips"></div>
+      <div class="people-list" id="people-list"></div>
+      <button type="button" class="btn btn-ghost" id="add-person">Add another person</button>
+    </section>
+
+    <section class="step" id="step-submit" aria-labelledby="submit-heading" hidden>
+      <p class="step-number" aria-hidden="true">3</p>
+      <h2 class="step-heading" id="submit-heading">Ready when you are</h2>
+      <p class="step-caption" id="submit-summary"></p>
+      <button type="button" class="btn btn-primary" id="find-btn">Find our common ground</button>
+      <p class="error" id="error-box" role="alert" hidden></p>
+    </section>
+
+    <section class="result" id="result" aria-live="polite" hidden></section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Common Ground by Michael Lip, <a href="https://github.com/theluckystripe">github.com/theluckystripe</a>. Taste data: Qloo.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
