@@ -25,10 +25,26 @@ const EXAMPLE_GROUPS = [
     kind: "place",
     location: "Warsaw",
     members: [
-      { name: "Kasia", likes: ["pierogi", "ramen", "bistro"] },
-      { name: "Marek", likes: ["sushi", "italian", "grill"] },
-      { name: "Ewa", likes: ["vegan", "korean", "coffee"] },
-      { name: "Piotr", likes: ["pizza", "tapas", "burger"] },
+      { name: "Kasia", likes: ["Polka", "Zapiecek", "Uki Uki"] },
+      { name: "Marek", likes: ["Regina Bar", "Charlotte", "Alewino"] },
+      { name: "Ewa", likes: ["Vegan Ramen Shop", "Bibenda", "Uki Uki"] },
+      { name: "Piotr", likes: ["Polka", "Bibenda", "Regina Bar"] },
+    ],
+  },
+  {
+    label: "Shared playlist",
+    kind: "artist",
+    members: [
+      { name: "Alex", likes: ["Radiohead", "Bjork"] },
+      { name: "Jo", likes: ["Kendrick Lamar", "Taylor Swift"] },
+    ],
+  },
+  {
+    label: "TV night",
+    kind: "tv_show",
+    members: [
+      { name: "Alex", likes: ["Severance", "Dark"] },
+      { name: "Jo", likes: ["Ted Lasso", "Fleabag"] },
     ],
   },
   {
@@ -105,7 +121,7 @@ function renderLocation() {
 function renderExamples() {
   const box = el("example-chips");
   box.replaceChildren();
-  box.append(make("span", "chips-label", "Try an example:"));
+  box.append(make("span", "chips-label", "Try an example"));
   for (const group of EXAMPLE_GROUPS) {
     const btn = make("button", "chip", group.label);
     btn.type = "button";
@@ -200,6 +216,7 @@ function renderLikeRow(member, i, j, value) {
   input.value = value;
   input.addEventListener("input", () => {
     member.likes[j] = input.value;
+    hideResult();
   });
   const removeBtn = make("button", "remove-like", "Remove");
   removeBtn.type = "button";
@@ -263,13 +280,14 @@ function validate() {
     return { errors, members: [] };
   }
   const members = collectMembers();
+  if (new Set(members.map((m) => m.name.toLowerCase())).size !== members.length) errors.push("Give each person a different name.");
   if (members.length < MIN_MEMBERS) errors.push(`Add at least ${MIN_MEMBERS} people.`);
   for (let i = 0; i < members.length; i++) {
     const m = members[i];
     const label = m.name || `Person ${i + 1}`;
-    if (!m.name) errors.push(`${label}: add a name.`);
-    if (m.likes.length < MIN_LIKES) errors.push(`${label}: list at least ${MIN_LIKES} favourites.`);
-    if (m.likes.length > MAX_LIKES) errors.push(`${label}: list at most ${MAX_LIKES} favourites.`);
+    if (!m.name) errors.push(`Add a name for ${label}.`);
+    if (m.likes.length < MIN_LIKES) errors.push(`${label} needs at least ${MIN_LIKES} favourites.`);
+    if (m.likes.length > MAX_LIKES) errors.push(`${label} can list at most ${MAX_LIKES} favourites.`);
   }
   if (state.kind === "place" && !state.location.trim()) {
     errors.push("Add a city for the restaurant.");
@@ -352,6 +370,8 @@ function renderResult(data) {
     return;
   }
   box.append(make("h2", "result-heading", "Your common ground"));
+  box.append(make("p", "mode-banner", data.note));
+  box.append(make("p", "step-caption", "Relative match scores within each person’s candidate list. These are not probabilities of enjoyment."));
   box.append(renderWinner(pick.winner));
   if (pick.fairness) box.append(make("p", "fairness", pick.fairness));
   box.append(renderScores(pick.winner, pick.why, members));
@@ -435,7 +455,7 @@ function renderRunnersUp(list) {
     if (entity.address) meta.push(entity.address);
     if (meta.length) card.append(make("p", "runner-meta", meta.join(" \u00b7 ")));
     const min = clamp(Math.round((scored.min || 0) * 100), 0, 100);
-    card.append(make("p", "runner-min", `Everyone scores it at least ${min}`));
+    card.append(make("p", "runner-min", `Everyone scores it at least ${min}%`));
     grid.append(card);
   }
   section.append(grid);
@@ -455,7 +475,7 @@ function renderUnresolved(members) {
   for (const item of items) {
     const li = make("li", "unresolved-item");
     li.append(make("span", "unresolved-name", item.name));
-    li.append(document.createTextNode(`We could not find: ${item.missing.join(", ")}`));
+    li.append(document.createTextNode(`We could not find ${item.missing.join(", ")}`));
     list.append(li);
   }
   section.append(list);
@@ -465,7 +485,13 @@ function renderUnresolved(members) {
 function init() {
   renderKinds();
   renderExamples();
-  state.members = [{ name: "", likes: ["", ""] }, { name: "", likes: ["", ""] }];
+  applyExample(EXAMPLE_GROUPS[0]);
+  fetch("/health").then((res) => {
+    if (!res.ok) throw new Error("Health check failed.");
+    return res.json();
+  }).then((data) => {
+    el("mode-banner").textContent = data.mode === "demo" ? data.note : "Live mode is configured. A successful pick confirms a Qloo response.";
+  }).catch(() => { el("mode-banner").textContent = "Could not check the data source. Each result will show its mode."; });
   renderPeople();
   updateStepVisibility();
   renderSubmitSummary();

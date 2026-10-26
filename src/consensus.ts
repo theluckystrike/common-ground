@@ -31,7 +31,7 @@ export function score(perMember: Record<string, Candidate[]>): Scored[] {
   }
   const scored: Scored[] = [];
   for (const [id, entity] of entityById) {
-    const per: Record<string, number> = {};
+    const per: Record<string, number> = Object.create(null);
     let sum = 0;
     for (const name of names) {
       const value = norm.get(name)?.get(id) ?? 0;
@@ -93,7 +93,7 @@ export function pick(scored: Scored[], members: ResolvedMember[]): Pick {
   const winner = candidates[0];
   if (!winner) throw new Error("No candidates remain after removing already-liked items.");
   const runnersUp = candidates.slice(1, 4);
-  const why: Record<string, string> = {};
+  const why: Record<string, string> = Object.create(null);
   for (const m of members) why[m.name] = explain(winner.entity, m);
   return { winner, runnersUp, why, fairness: fairness(winner, runnersUp, members) };
 }

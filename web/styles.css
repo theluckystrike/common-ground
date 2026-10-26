@@ -667,3 +667,5 @@ body {
     transition: none;
   }
 }
+
+.mode-banner { padding: 1rem 1.2rem; border: 1px solid #b89a52; border-radius: 12px; background: #fff7df; color: #453516; font-size: .94rem; line-height: 1.6; }

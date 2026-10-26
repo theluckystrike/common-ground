@@ -9,7 +9,7 @@ export const MAX_LIKES = 5;
 export async function resolveMembers(qloo: Qloo, members: Member[], kind: Kind): Promise<ResolvedMember[]> {
   return Promise.all(members.map(async (m) => {
     const likes = m.likes.map((l) => l.trim()).filter(Boolean).slice(0, MAX_LIKES);
-    const found = await Promise.all(likes.map((l) => qloo.search(l, kind).catch(() => null)));
+    const found = await Promise.all(likes.map((l) => qloo.search(l, kind)));
     const liked = found.filter((e): e is Entity => e !== null);
     return { name: m.name.trim().slice(0, 40) || "Someone", liked, unresolved: likes.filter((_, i) => found[i] === null) };
   }));
@@ -25,5 +25,8 @@ export async function findCommonGround(qloo: Qloo, members: Member[], kind: Kind
   const perMember = Object.fromEntries(resolved.map((m, i) => [m.name, lists[i] ?? []]));
   const scored = score(perMember);
   if (scored.length === 0) throw new QlooError(404, "Qloo returned no candidates for this group. Try another category or more favourites.");
+  if (scored.every((s) => resolved.some((m) => m.liked.some((e) => e.id === s.entity.id)))) {
+    throw new QlooError(404, "No new candidates remain. Try more favourites or another category.");
+  }
   return { pick: pick(scored, resolved), members: resolved };
 }

@@ -89,7 +89,7 @@ test("search requests the documented path, parameters and auth header", async ()
   const url = new URL(calls[0]!.url);
   assert.equal(url.origin + url.pathname, `${BASE}/search`);
   assert.equal(url.searchParams.get("types"), "urn:entity:movie");
-  assert.equal(url.searchParams.get("q"), "Interstellar");
+  assert.equal(url.searchParams.get("query"), "Interstellar");
   assert.equal(headers(calls[0]!.init)["X-Api-Key"], "test-key");
   assert.ok(calls[0]!.init?.signal, "a timeout signal is attached");
   assert.ok(!calls[0]!.url.includes("test-key"), "the key never appears in the URL");
@@ -110,7 +110,7 @@ test("insights requests the documented path and parameters", async () => {
   assert.equal(headers(calls[0]!.init)["X-Api-Key"], "test-key");
 });
 
-test("insights maps entities and normalises percent affinity to 0..1", async () => {
+test("insights maps entities and reads documented affinity in 0..1", async () => {
   const { qloo } = client({
     success: true,
     results: {
@@ -121,7 +121,7 @@ test("insights maps entities and normalises percent affinity to 0..1", async () 
           entity_type: "urn:entity:movie",
           tags: ["urn:tag:genre:media:science_fiction"],
           properties: { release_year: 2024 },
-          query: { affinity: 85 },
+          query: { affinity: 0.85 },
         },
         {
           id: "uuid-2",

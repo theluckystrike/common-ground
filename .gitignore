@@ -2,4 +2,15 @@ node_modules/
 .wrangler/
 dist/
 .dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.secrets/
+coverage/
+*.log
+.DS_Store
 docs/*.html
+gitleaks-report.*

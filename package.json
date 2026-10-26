@@ -1,18 +1,16 @@
 {
   "name": "common-ground",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs",
-    "test": "test"
-  },
+  "description": "A Qloo-powered group recommendation tool that protects the least happy person.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "verify:live": "node scripts/verify-live.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Michael Lip",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/server": "2.3.1",
@@ -23,5 +21,13 @@
     "tsx": "4.23.12",
     "typescript": "5.9.3",
     "wrangler": "4.151.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theluckystrike/common-ground.git"
   }
 }

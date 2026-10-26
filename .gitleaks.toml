@@ -1,0 +1,19 @@
+title = "Common Ground secret scan"
+
+[extend]
+useDefault = true
+
+# Downloaded documentation HTML is ignored by Git and never published.
+# Its embedded site configuration is unrelated to this application.
+[[allowlists]]
+description = "Local downloaded documentation HTML"
+paths = ['''^docs/[^/]+\.html$''']
+
+[[rules]]
+id = "curl-auth-header"
+[[rules.allowlists]]
+description = "Literal credential placeholders in the saved Qloo guide"
+condition = "AND"
+paths = ['''^docs/qloo-llm-hackathon-developer-guide\.txt$''']
+regexTarget = "secret"
+regexes = ['''^(?:Bearer )?YOUR_API_KEY$''']

@@ -14,7 +14,7 @@ const KIND_TYPE: Record<Kind, string> = {
   podcast: "urn:entity:podcast",
   place: "urn:entity:place",
   destination: "urn:entity:destination",
-  video_game: "urn:entity:video_game",
+  video_game: "urn:entity:videogame",
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -67,7 +67,8 @@ function toEntity(raw: unknown, kind: Kind): Entity | null {
   if (!id && !name) return null;
   const entity: Entity = { id: id || name, name: name || id, kind, tags: tagNames(o["tags"]) };
   const props = asRecord(o["properties"]);
-  const image = asString(o["image"]) ?? (props ? asString(props["image"]) : undefined);
+  const rawImage = o["image"] ?? props?.["image"];
+  const image = asString(rawImage) ?? asString(asRecord(rawImage)?.["url"]);
   if (image) entity.image = image;
   const year = asNumber(o["year"])
     ?? (props ? asNumber(props["release_year"]) ?? asNumber(props["publication_year"]) ?? asNumber(props["year"]) : undefined);
@@ -92,8 +93,7 @@ function affinityOf(raw: unknown): number | undefined {
 
 function normaliseAffinity(value: number | undefined): number {
   if (value === undefined) return 0;
-  const scaled = value > 1 ? value / 100 : value;
-  return Math.max(0, Math.min(1, scaled));
+  return Math.max(0, Math.min(1, value));
 }
 
 function matchesType(raw: unknown, kind: Kind): boolean {
@@ -125,9 +125,7 @@ async function httpError(response: Response): Promise<QlooError> {
   if (status === 429) {
     return new QlooError(status, "Qloo is limiting how fast we can ask. Wait a moment and try again.");
   }
-  const body = await response.text().catch(() => "");
-  const detail = body.trim().slice(0, 200);
-  return new QlooError(status, `Qloo returned an error (status ${status}).${detail ? ` ${detail}` : ""}`);
+  return new QlooError(status, `Qloo returned an error with status ${status}. Try again later.`);
 }
 
 export class Qloo {
@@ -140,8 +138,12 @@ export class Qloo {
   async search(name: string, kind: Kind): Promise<Entity | null> {
     const url = new URL("/search", this.base);
     url.searchParams.set("types", KIND_TYPE[kind]);
-    url.searchParams.set("q", name);
-    const data = await this.get(url);
+    url.searchParams.set("query", name);
+    let data: unknown;
+    try { data = await this.get(url); } catch (err) {
+      if (err instanceof QlooError && err.status === 404) return null;
+      throw err;
+    }
     for (const raw of entitiesFrom(data)) {
       if (!matchesType(raw, kind)) continue;
       const entity = toEntity(raw, kind);
