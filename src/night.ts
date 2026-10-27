@@ -4,9 +4,9 @@ import { QlooError, type Entity, type Member, type ResolvedMember, type Scored }
 
 /** The three stops of a night out. Each is a Qloo place genre tag in the chosen city. */
 export const STOPS = [
-  { key: "dinner", label: "Dinner", tag: "urn:tag:genre:place:restaurant", fits: /restaurant|bistro|brasserie|steak|pizz|sushi|ramen|tapas|trattoria|osteria|izakaya|diner|gastropub|grill/ },
+  { key: "dinner", label: "Dinner", tag: "urn:tag:genre:place:restaurant", fits: /restaurant|bistro|brasserie|steak|pizz|sushi|ramen|tapas|trattoria|osteria|izakaya|diner|gastropub|grill/, not: /(^|_)(bar|pub|lounge|cafe)($|_)|cocktail|brunch|coffee|bakery|donut/ },
   { key: "drinks", label: "Drinks", tag: "urn:tag:category:place:bar", fits: /(^|_)(bar|pub|lounge|brewery|taproom|speakeasy)($|_)|wine|cocktail/ },
-  { key: "music", label: "Live music", tag: "urn:tag:genre:place:live_music_venue", fits: /live_music|concert_hall|jazz|music_venue|night_club|nightclub|disco_club|blues|fado/ },
+  { key: "music", label: "Live music", tag: "urn:tag:genre:place:live_music_venue", fits: /live_music|concert_hall|jazz|music_venue|night_club|nightclub|disco_club|blues|fado/, not: /restaurant/ },
 ] as const;
 
 export const NIGHT_MAX_FRIENDS = 6;
@@ -40,10 +40,12 @@ type Candidate = { entity: Entity; affinity: number; explain?: Array<{ id: strin
  * so a venue needs listed opening hours and a category tag that fits the stop.
  * Dinner needs a restaurant category, so a bar that also serves food goes to drinks.
  */
-export function isVenueFor(stop: (typeof STOPS)[number], c: Candidate): boolean {
+export function isVenueFor(stop: (typeof STOPS)[number], c: Candidate, strict = true): boolean {
   if (!c.venue?.hours) return false;
   const categories = c.venue.tags.filter((t) => t.startsWith("urn:tag:category:place:")).map((t) => t.slice("urn:tag:category:place:".length));
-  return !categories.some((k) => NOT_A_VENUE.test(k)) && categories.some((k) => stop.fits.test(k));
+  // A restaurant with a band on Fridays is dinner, not the live music stop. A rooftop bar with brunch is drinks, not dinner.
+  const not = strict && "not" in stop ? stop.not : undefined;
+  return !categories.some((k) => NOT_A_VENUE.test(k) || (not?.test(k) ?? false)) && categories.some((k) => stop.fits.test(k));
 }
 
 /** Qloo addresses sometimes carry a postal-code label in Chinese. Drop non-Latin script labels. */
@@ -132,7 +134,9 @@ export async function planNight(qloo: Qloo, members: Member[], city: string): Pr
 
   const perStop = await Promise.all(STOPS.map(async (stop) => {
     const all: Candidate[] = await qloo.insights(everyone, "place", { take: GROUP_TAKE, location: city, tag: stop.tag, explain: true, strictCity: true });
-    const group = all.filter((c) => isVenueFor(stop, c)).slice(0, POOL_SIZE);
+    // Prefer pure venues. If a city has fewer than 3, allow mixed ones, such as a fado house for music.
+    const strict = all.filter((c) => isVenueFor(stop, c));
+    const group = (strict.length >= 3 ? strict : all.filter((c) => isVenueFor(stop, c, false))).slice(0, POOL_SIZE);
     for (const c of group) c.entity.address = cleanAddress(c.entity.address);
     const pool = group.map((c) => c.entity.id);
     if (pool.length === 0) return { ranked: [] as Scored[], group };

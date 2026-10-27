@@ -195,9 +195,13 @@ function renderStop(s, names, color) {
   card.append(make("p", "stop-min", `Everyone scores it at least ${pct(s.winner.min)}.${close}`));
   card.append(make("p", "because-label", "Picked by"));
   const because = make("ul", "because");
-  for (const b of s.because) because.append(make("li", "", `${b.name} (${b.friends.join(", ")}, ${KIND[b.kind] || b.kind}) ${pct(b.weight)}%`));
+  // Qloo explainability is often near-uniform. Then the honest reading is a balanced compromise, not one cause.
+  const weights = s.because.map((b) => b.weight);
+  const flat = weights.length > 1 && Math.max(...weights) - Math.min(...weights) < 0.03;
+  for (const b of s.because) because.append(make("li", "", `${b.name} (${b.friends.join(", ")}, ${KIND[b.kind] || b.kind})${flat ? "" : ` ${pct(b.weight)}%`}`));
   if (!s.because.length) because.append(make("li", "", "the group's shared taste"));
   card.append(because);
+  if (flat) card.append(make("p", "stop-meta", "Qloo weighs these favourites about equally, so this venue is a balanced compromise."));
   card.append(make("p", "because-label", "Whose taste counts"));
   // Near-equal shares carry no information, so say that in words instead of drawing four equal bars.
   const even = names.every((n) => Math.abs((s.influence[n] || 0) - 1 / names.length) < 0.05);

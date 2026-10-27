@@ -78,6 +78,8 @@ test("isVenueFor needs opening hours, a fitting category, and no shop or market 
   const c = (hours: boolean, ...cats: string[]) => ({ entity: ent("v"), affinity: 0.5, venue: { hours, tags: cats.map((k) => `urn:tag:category:place:${k}`) } });
   assert.equal(isVenueFor(dinner, c(true, "italian_restaurant")), true);
   assert.equal(isVenueFor(dinner, c(true, "bar")), false);
+  assert.equal(isVenueFor(dinner, c(true, "brunch_restaurant", "bar", "cocktail_bar")), false);
+  assert.equal(isVenueFor(dinner, c(true, "brunch_restaurant", "bar", "cocktail_bar"), false), true);
   assert.equal(isVenueFor(dinner, c(false, "restaurant")), false);
   assert.equal(isVenueFor(dinner, c(true, "restaurant", "market", "tourist_attraction")), false);
   assert.equal(isVenueFor(drinks, c(true, "cocktail_bar")), true);
@@ -85,6 +87,9 @@ test("isVenueFor needs opening hours, a fitting category, and no shop or market 
   assert.equal(isVenueFor(drinks, c(true, "bar", "home_goods_store")), false);
   assert.equal(isVenueFor(music, c(true, "jazz_club")), true);
   assert.equal(isVenueFor(music, c(true, "live_music_venue", "wedding_venue")), false);
+  assert.equal(isVenueFor(music, c(true, "italian_restaurant", "live_music_venue")), false);
+  assert.equal(isVenueFor(music, c(true, "italian_restaurant", "live_music_venue"), false), true);
+  assert.equal(isVenueFor(music, c(true, "wine_bar", "live_music_venue")), true);
   assert.equal(isVenueFor(music, { entity: ent("v"), affinity: 0.5 }), false);
 });
 
