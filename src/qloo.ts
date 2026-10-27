@@ -2,6 +2,8 @@ import { QlooError, type Entity, type Kind, type TasteFrom } from "./types.js";
 
 const DEFAULT_BASE = "https://hackathon.api.qloo.com";
 const TIMEOUT_MS = 5_000;
+// Explainability answers are slower for big cities like New York.
+const EXPLAIN_TIMEOUT_MS = 9_000;
 const MAX_TAGS = 12;
 const MAX_TAKE = 50;
 const DEFAULT_TAKE = 20;
@@ -108,6 +110,21 @@ function affinityOf(raw: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/** Per-result `query.explainability`: which input entities drove this recommendation, with 0 to 1 scores. */
+function explainOf(raw: unknown): Array<{ id: string; score: number }> {
+  const query = asRecord(asRecord(raw)?.["query"]);
+  const list = asRecord(query?.["explainability"])?.["signal.interests.entities"];
+  if (!Array.isArray(list)) return [];
+  const out: Array<{ id: string; score: number }> = [];
+  for (const item of list) {
+    const o = asRecord(item);
+    const id = asString(o?.["entity_id"]);
+    const score = asNumber(o?.["score"]);
+    if (id && score !== undefined) out.push({ id, score });
+  }
+  return out;
+}
+
 function normaliseAffinity(value: number | undefined): number {
   if (value === undefined) return 0;
   return Math.max(0, Math.min(1, value));
@@ -126,9 +143,9 @@ function clampTake(take: number): number {
   return Math.min(MAX_TAKE, Math.max(1, n));
 }
 
-function abortToError(err: unknown): QlooError {
+function abortToError(err: unknown, ms: number): QlooError {
   if (err instanceof Error && err.name === "AbortError") {
-    return new QlooError(504, "Qloo did not answer within 5 seconds. Try again.");
+    return new QlooError(504, `Qloo did not answer within ${ms / 1000} seconds. Try again.`);
   }
   return new QlooError(502, "Could not reach Qloo. Check your connection and the hackathon base URL.");
 }
@@ -183,7 +200,11 @@ export class Qloo {
     return null;
   }
 
-  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string; candidates?: string[] }): Promise<Array<{ entity: Entity; affinity: number }>> {
+  /**
+   * `tag` overrides the place genre (restaurant by default). `explain` asks Qloo which input
+   * entities drove each result (`feature.explainability`), so a pick can name the favourites behind it.
+   */
+  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string; candidates?: string[]; tag?: string; explain?: boolean }): Promise<Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }> }>> {
     const url = new URL("/v2/insights", this.base);
     url.searchParams.set("filter.type", KIND_TYPE[kind]);
     const ids = liked.map((e) => e.id).filter(Boolean);
@@ -191,33 +212,37 @@ export class Qloo {
     url.searchParams.set("take", String(clampTake(opts.take)));
     if (opts.candidates?.length) url.searchParams.set("filter.results.entities", opts.candidates.join(","));
     if (kind === "place") {
-      url.searchParams.set("filter.tags", RESTAURANT_TAG);
+      url.searchParams.set("filter.tags", opts.tag ?? RESTAURANT_TAG);
       if (opts.location) url.searchParams.set("filter.location.query", opts.location);
     }
+    if (opts.explain) url.searchParams.set("feature.explainability", "true");
     this.calls.insights++;
-    const data = await this.get(url);
-    const out: Array<{ entity: Entity; affinity: number }> = [];
+    const data = await this.get(url, opts.explain ? EXPLAIN_TIMEOUT_MS : TIMEOUT_MS);
+    const out: Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }> }> = [];
     for (const raw of entitiesFrom(data)) {
       const entity = toEntity(raw, kind);
       if (!entity) continue;
-      out.push({ entity, affinity: normaliseAffinity(affinityOf(raw)) });
+      out.push(opts.explain ? { entity, affinity: normaliseAffinity(affinityOf(raw)), explain: explainOf(raw) } : { entity, affinity: normaliseAffinity(affinityOf(raw)) });
     }
     return out;
   }
 
-  private async get(url: URL): Promise<unknown> {
+  private async get(url: URL, timeoutMs = TIMEOUT_MS): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
-      try { return await this.getOnce(url); } catch (err) {
-        if (!(err instanceof QlooError) || err.status !== 429 || attempt >= RETRIES_429) throw err;
+      try { return await this.getOnce(url, timeoutMs); } catch (err) {
+        if (!(err instanceof QlooError)) throw err;
+        // A slow answer is retried once. Rate limits are retried twice after a pause.
+        if (err.status === 504 && attempt === 0) continue;
+        if (err.status !== 429 || attempt >= RETRIES_429) throw err;
         await new Promise((r) => setTimeout(r, RETRY_429_MS));
       }
     }
   }
 
-  private async getOnce(url: URL): Promise<unknown> {
+  private async getOnce(url: URL, timeoutMs: number): Promise<unknown> {
     await this.pace();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
       response = await this.fetchFn(url.toString(), {
@@ -227,7 +252,7 @@ export class Qloo {
       });
     } catch (err) {
       clearTimeout(timer);
-      throw abortToError(err);
+      throw abortToError(err, timeoutMs);
     }
     clearTimeout(timer);
     if (!response.ok) throw await httpError(response);

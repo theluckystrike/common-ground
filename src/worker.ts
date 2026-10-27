@@ -1,7 +1,8 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 
 import { findCommonGround } from "./group.js";
-import { groupInput } from "./input.js";
+import { groupInput, nightInput } from "./input.js";
+import { NIGHT_NOTE, planNight } from "./night.js";
 import { dataSource } from "./runtime.js";
 import { createServer } from "./server.js";
 import { QlooError } from "./types.js";
@@ -32,6 +33,39 @@ async function apiPick(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// Same plan within 30 minutes reuses the answer, so judges replaying an example do not spend the monthly Qloo quota.
+const NIGHT_TTL_MS = 30 * 60_000;
+const nightCache = new Map<string, { at: number; body: unknown }>();
+
+export function nightKey(city: string, members: Array<{ name: string; likes: string[] }>): string {
+  return JSON.stringify([city.toLowerCase(), members.map((m) => [m.name, m.likes.map((l) => l.toLowerCase())])]);
+}
+
+async function apiNight(request: Request, env: Env): Promise<Response> {
+  const raw = await request.text();
+  if (raw.length > 20_000) return Response.json({ error: "This group is too large." }, { status: 413 });
+  let body: unknown;
+  try { body = JSON.parse(raw); } catch { return Response.json({ error: "Send JSON." }, { status: 400 }); }
+  const parsed = nightInput.safeParse(body);
+  if (!parsed.success) return Response.json({ error: "Add a city, 2 to 6 friends with different names, and 1 to 4 favourites each." }, { status: 400 });
+  const { city, members } = parsed.data;
+  const { qloo, mode, note } = dataSource(env.QLOO_API_KEY);
+  if (mode === "demo") return Response.json({ error: "Night plans need live Qloo data, and this server has no Qloo key.", mode, note }, { status: 503 });
+  const key = nightKey(city, members);
+  const hit = nightCache.get(key);
+  if (hit && Date.now() - hit.at < NIGHT_TTL_MS) return Response.json({ ...hit.body as object, cached: true }, { headers: { "cache-control": "no-store" } });
+  try {
+    const result = { ...await planNight(qloo, members, city), mode, note: NIGHT_NOTE };
+    if (nightCache.size >= 50) nightCache.delete(nightCache.keys().next().value!);
+    nightCache.set(key, { at: Date.now(), body: result });
+    return Response.json({ ...result, cached: false }, { headers: { "cache-control": "no-store" } });
+  } catch (err) {
+    const status = err instanceof QlooError ? err.status : 500;
+    const message = err instanceof QlooError ? err.message : "Something went wrong. Please try again.";
+    return Response.json({ error: message, mode, note }, { status: status >= 400 && status < 600 ? status : 502 });
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -44,6 +78,10 @@ export default {
     if (pathname === "/api/pick") {
       if (request.method !== "POST") return Response.json({ error: "Use POST." }, { status: 405, headers: { allow: "POST" } });
       return apiPick(request, env);
+    }
+    if (pathname === "/api/night") {
+      if (request.method !== "POST") return Response.json({ error: "Use POST." }, { status: 405, headers: { allow: "POST" } });
+      return apiNight(request, env);
     }
     if (pathname === "/health") {
       const { mode, note } = dataSource(env.QLOO_API_KEY);

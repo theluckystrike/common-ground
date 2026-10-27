@@ -3,21 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Common Ground</title>
-  <meta name="description" content="Name a few things you love. Common Ground finds the one thing your whole group will enjoy.">
+  <title>Common Ground. Plan a night out your whole group will love</title>
+  <meta name="description" content="For friends planning a night out. Everyone names the music, films, shows and books they love. Qloo's taste graph picks dinner, drinks and live music in your city, and shows whose taste picked each stop.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="site-header">
     <div class="wrap">
-      <p class="eyebrow">One pick for everyone</p>
+      <p class="eyebrow">For friends planning a night out</p>
       <h1 class="site-title">Common Ground</h1>
-      <p class="tagline">Each person names a few things they love. Qloo scores every option for every person. We pick the one that leaves nobody behind.</p>
+      <p class="tagline">Everyone names a few bands, films, shows or books they love. Qloo's taste graph turns that shared taste into dinner, drinks and live music in your city. Each stop shows whose taste picked it.</p>
     </div>
   </header>
 
   <main class="wrap" id="app">
     <p class="mode-banner" id="mode-banner" role="status">Checking the data source.</p>
+
+    <section class="step night" id="night" aria-labelledby="night-heading">
+      <h2 class="step-heading" id="night-heading">Plan the night</h2>
+      <p class="step-caption">Add 2 to 6 friends. Give each friend 1 to 4 favourites, separated by commas. Mix music, films, TV and books.</p>
+      <div class="example-chips" id="night-examples"></div>
+      <div class="location-field">
+        <label class="field-label" for="night-city">City</label>
+        <input class="text-input" id="night-city" type="text" placeholder="e.g. Lisbon" autocomplete="off" maxlength="80">
+      </div>
+      <div class="night-friends" id="night-friends"></div>
+      <button type="button" class="btn btn-ghost" id="night-add">Add a friend</button>
+      <button type="button" class="btn btn-primary" id="night-btn">Plan our night</button>
+      <p class="error" id="night-error" role="alert" hidden></p>
+    </section>
+
+    <section class="result night-result" id="night-result" aria-live="polite" hidden></section>
+
+    <h2 class="or-heading">Or pick one thing together</h2>
+    <p class="step-caption or-caption">One movie, show, book, artist or restaurant for the group, picked the same fair way.</p>
 
     <section class="step" id="step-kind" aria-labelledby="kind-heading">
       <p class="step-number" aria-hidden="true">1</p>
@@ -58,9 +77,9 @@
 
     <section class="agent-panel" aria-labelledby="agent-heading">
       <h2 class="step-heading" id="agent-heading">Use it from your agent</h2>
-      <p class="step-caption">The same Qloo flow is an MCP tool named <code>find_common_ground</code>. Add it to Claude Code with one command.</p>
+      <p class="step-caption">Both flows are MCP tools, <code>plan_night_out</code> and <code>find_common_ground</code>. Add them to Claude Code with one command.</p>
       <pre class="agent-cmd"><code>claude mcp add --transport http common-ground https://common-ground.lipmichal.workers.dev/mcp</code></pre>
-      <p class="step-caption">Then ask your agent. "Ana loves Radiohead and Bjork, Tom loves Kendrick Lamar and Taylor Swift. Find us a restaurant in Lisbon."</p>
+      <p class="step-caption">Then ask your agent. "Plan a night out in Lisbon. Ana loves Radiohead and Dune, Tom loves Kendrick Lamar and The Bear, Priya loves Phoebe Bridgers and Normal People."</p>
     </section>
 
   </main>
@@ -72,5 +91,6 @@
   </footer>
 
   <script type="module" src="app.js"></script>
+  <script type="module" src="night.js"></script>
 </body>
 </html>

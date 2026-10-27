@@ -22,3 +22,17 @@ export const groupInput = z.object({
     ctx.addIssue({ code: "custom", message: "Add a city for the restaurant." });
   }
 });
+
+export const nightInput = z.object({
+  city: z.string().trim().min(1).max(80).describe("City for the night out, for example Lisbon or New York."),
+  members: z.array(z.object({
+    name: z.string().trim().min(1).max(40),
+    likes: z.array(z.string().trim().min(1).max(80)).min(1).max(4)
+      .describe("1 to 4 music artists, movies, TV shows or books this friend loves. Mix them freely."),
+  }).strict()).min(2).max(6),
+}).strict().superRefine((group, ctx) => {
+  const names = group.members.map((m) => m.name.toLowerCase());
+  if (new Set(names).size !== names.length) {
+    ctx.addIssue({ code: "custom", message: "Give each friend a different name." });
+  }
+});

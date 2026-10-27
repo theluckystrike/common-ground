@@ -762,3 +762,26 @@ body {
 .agent-panel .step-heading {
   color: #fff;
 }
+
+.night { border-color: var(--accent); }
+.night-friends { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+.night-row { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.night .btn-primary { margin-left: 8px; }
+.or-heading { margin: 48px 0 4px; font-family: var(--serif); font-size: 1.4rem; text-align: center; color: var(--ink-soft); }
+.or-caption { text-align: center; }
+.stops { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 760px) { .stops { grid-template-columns: repeat(3, 1fr); } }
+.stop-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.stop-time { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-dark); }
+.stop-name { margin: 0; font-family: var(--serif); font-size: 1.35rem; line-height: 1.2; }
+.stop-meta { margin: 0; color: var(--ink-soft); font-size: 0.88rem; }
+.stop-min { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--gold-soft); color: #6f4c1a; font-weight: 600; font-size: 0.9rem; }
+.because-label { margin: 4px 0 0; font-weight: 700; font-size: 0.85rem; }
+.because { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.because li { padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-size: 0.82rem; }
+.influence { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--line); }
+.influence span { display: block; height: 100%; }
+.influence-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; font-size: 0.8rem; color: var(--ink-soft); }
+.influence-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; }
+.stop-scores { margin: 0; font-size: 0.82rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.stop-alt { margin: 0; font-size: 0.82rem; color: var(--ink-faint); }

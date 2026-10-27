@@ -1,41 +1,44 @@
 # Common Ground
 
-**One pick a whole group will enjoy, without leaving one person behind.**
-Each person names a few things they love. Qloo scores every candidate for every person.
-Common Ground picks the option whose least happy person is happiest.
+**Plan a night out your whole friend group will love.**
+For friends who argue about where to go. Everyone names a few bands, films, shows or books they love.
+Qloo's cross-domain taste graph turns that shared taste into dinner, drinks and live music in your city.
+Each stop names the favourites that picked it and shows how much each friend's taste counts.
 
-[**Open the live app**](https://common-ground.lipmichal.workers.dev) · [Demo video (1.5 min)](https://youtu.be/IWAe4__XueA) · [MCP endpoint](https://common-ground.lipmichal.workers.dev/mcp) · [Live mode check](https://common-ground.lipmichal.workers.dev/health)
+[**Open the live app**](https://common-ground.lipmichal.workers.dev) · [Demo video](https://youtu.be/IWAe4__XueA) · [MCP endpoint](https://common-ground.lipmichal.workers.dev/mcp) · [Live mode check](https://common-ground.lipmichal.workers.dev/health)
 
-![Three friends list only music. Qloo picks Lady Bird, and everyone scores it at least 90](docs/screenshot-result.png)
+![Four friends list music, films, TV and books. Qloo plans dinner, drinks and live music in Lisbon, and each stop names the favourites behind it](docs/screenshot-night-plan.png)
 
 ## Why it needs Qloo
 
-- **Cross-domain taste.** Favourites can come from one domain and the pick from another. Three friends list only music artists. Qloo picks a film or a restaurant in Lisbon from that music taste. With "Anything", one person can give a band and a book, and another a film and a TV show. An LLM alone cannot score that link per person.
-- **A real score for every person.** Qloo Insights gives each person an affinity for every finalist. The app needs those per-person scores to protect the least happy person.
+- **Taste in one domain picks places in another.** Nobody in the group names a restaurant or a bar. Ana gives Radiohead and Dune, Tom gives Kendrick Lamar and The Bear. Qloo links that music, film and TV taste to real venues in the city. A search engine or an LLM alone has no per-person score for that link.
+- **Qloo says why.** Each stop uses Qloo's `feature.explainability`. The app names the favourites that drove the pick ("Radiohead, Ana, 16%") and splits the pick between friends. When one friend's taste barely counts, the app says so and asks for one more favourite.
+- **A real score for every friend.** Qloo Insights gives each friend an affinity for every candidate venue. Each stop is the venue whose least happy friend is happiest. Scores are raw Qloo affinity, so real gaps stay visible and close calls are labelled.
 - **Nothing is made up.** Every favourite is matched with Qloo search. Unknown names are reported, never guessed. A failed live call shows an error, not fake data.
 
 ## Try it in 30 seconds
 
-1. Open the [live app](https://common-ground.lipmichal.workers.dev). The "Movie from music taste" group is ready.
-2. Press **Find our common ground**.
-3. Open **Show Qloo's work**. It shows the live call count, the matched Qloo entities and the score of each finalist for each person.
-4. Try "Dinner in Lisbon from playlists" for a restaurant from the same music taste.
-5. Try "Mixed tastes, one TV show". Each favourite can be a band, a film, a show or a book.
+1. Open the [live app](https://common-ground.lipmichal.workers.dev). "Friday in Lisbon" is ready with four friends.
+2. Press **Plan our night**. It takes about 4 to 9 seconds.
+3. Read the three stops. "Picked by" names the favourites behind each venue. "Whose taste counts" shows each friend's share.
+4. Open **Show Qloo's work** for the live call count and the matched Qloo entities.
+5. Try "Birthday in New York" or "Team night in London", or type your own friends.
 
-No login is needed.
+Below the night planner, "Or pick one thing together" picks one movie, show, book, artist or restaurant the same fair way. No login is needed.
 
 ![Show Qloo's work panel with the live call count and the per-person score table](docs/screenshot-qloo-work.png)
 
 ## Use it from an agent
 
-The same flow is the MCP tool `find_common_ground` on a Streamable HTTP endpoint.
+Both flows are MCP tools on one Streamable HTTP endpoint, `plan_night_out` and `find_common_ground`.
 
 ```sh
 claude mcp add --transport http common-ground https://common-ground.lipmichal.workers.dev/mcp
 ```
 
-Then ask your agent, for example "Ana loves Radiohead and Bjork, Tom loves Kendrick Lamar and Taylor Swift. Find us a restaurant in Lisbon."
-The tool input is `kind`, an optional `tasteFrom` (a category, or `any` for mixed favourites), an optional `location` and 2 to 8 `members` with 2 to 5 `likes` each.
+Then ask your agent, for example "Plan a night out in Lisbon. Ana loves Radiohead and Dune, Tom loves Kendrick Lamar and The Bear, Priya loves Phoebe Bridgers and Normal People."
+`plan_night_out` takes a `city` and 2 to 6 `members` with 1 to 4 `likes` each. It returns three stops, the favourites behind each, each friend's share and a call trace.
+`find_common_ground` input is `kind`, an optional `tasteFrom` (a category, or `any` for mixed favourites), an optional `location` and 2 to 8 `members` with 2 to 5 `likes` each.
 The tool returns the pick, three alternatives, a reason per person and a trace of the Qloo calls.
 
 Registry name `io.github.theluckystrike/common-ground` in the [official MCP registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.theluckystrike/common-ground).
@@ -64,7 +67,17 @@ Keep this file private.
 QLOO_API_KEY=YOUR_API_KEY
 ```
 
-## How Qloo drives the pick
+## How Qloo plans the night
+
+1. `GET /search` resolves each favourite across artists, movies, TV shows and books. Each favourite keeps the type Qloo returns.
+2. For each stop (dinner, drinks, live music), one `GET /v2/insights` call sends everyone's favourites as `signal.interests.entities`, `filter.type=urn:entity:place`, `filter.location.query` with the city, a stop tag and `feature.explainability=true`. Stop tags are `urn:tag:genre:place:restaurant`, `urn:tag:category:place:bar` and `urn:tag:genre:place:live_music_venue`.
+3. The top 25 venues form the pool. One more Insights call per friend scores that pool with `filter.results.entities`.
+4. Each stop is the venue with the highest lowest raw affinity. The group average breaks ties. A venue is used only once in the night.
+5. The winner's `query.explainability` scores name the favourites behind it. Each friend's share is the sum of their favourites' scores. A shared favourite is split evenly.
+
+A four-friend plan makes 8 searches and 15 Insights calls. The same plan within 30 minutes is answered from memory, so replays by judges do not spend the quota.
+
+## How Qloo drives the single pick
 
 The Worker reads `QLOO_API_KEY` from its environment.
 On Cloudflare this value is a Worker secret.
@@ -83,7 +96,7 @@ The browser never receives the key.
 
 The key travels only in the `X-Api-Key` request header.
 Hackathon calls use `https://hackathon.api.qloo.com`.
-Calls time out after five seconds.
+Calls time out after five seconds, or nine seconds for explainability calls. A timeout is retried once.
 Calls are spaced to stay under the hackathon limit of 10 requests per second.
 A 429 answer is retried twice after one second.
 Authentication, quota and network errors are reported.
@@ -101,7 +114,7 @@ The same resolution and fairness code runs in both modes.
 The page banner, result note, JSON response and MCP response show the mode.
 Fixture affinities and IDs are invented.
 They are not evidence of Qloo recommendations or real user preferences.
-No captured Qloo response data is published.
+The night plan tests use one small recorded set of real Qloo responses for a Lisbon group, trimmed to IDs, names, types, affinity and explainability.
 
 [The fixture file](src/fixtures/qloo.ts) cites the documented response schemas.
 Search returns `success`, `duration` and a `results` array.
@@ -155,6 +168,10 @@ It is read only and does not book venues or buy media.
 
 ## Limits
 
+Night plans have two to six friends with one to four favourites each, and need a large enough city.
+Explainability scores are often close together, so "Picked by" shows influence, not a single cause.
+A bar can also be tagged as a restaurant, and a music venue can be a festival site near the city.
+
 Groups have two to eight people with different names.
 Each person supplies two to five favourites.
 Restaurants require a city and named venues as favourites.
@@ -184,7 +201,8 @@ API availability after the hackathon depends on Qloo access.
 
 `npm test` uses fixture responses and fake fetch functions.
 It never calls Qloo.
-Tests cover fairness, pool scoring, input errors, auth errors, rate limits, timeout handling, fixture replay and MCP calls.
+Night plan tests replay recorded Qloo responses.
+Tests cover the night plan, explainability shares, one venue per stop, fairness, pool scoring, input errors, auth errors, rate limits, timeout handling, fixture replay and MCP calls.
 
 ```sh
 gitleaks detect --source . --redact --no-banner
