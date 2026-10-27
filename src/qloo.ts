@@ -9,6 +9,8 @@ const DEFAULT_TAKE = 20;
 const GAP_MS = 125;
 const RETRY_429_MS = 1_000;
 const RETRIES_429 = 2;
+// Without a genre tag, place results include museums and train stations.
+const RESTAURANT_TAG = "urn:tag:genre:place:restaurant";
 
 const KIND_TYPE: Record<Kind, string> = {
   movie: "urn:entity:movie",
@@ -141,6 +143,8 @@ export class Qloo {
   ) {}
 
   private nextSlot = 0;
+  /** Count of Qloo calls by endpoint, shown to users so they can see the work behind a pick. */
+  readonly calls = { search: 0, insights: 0 };
 
   /** Reserve the next send time so one group request never bursts past the per-second limit. */
   private async pace(): Promise<void> {
@@ -154,6 +158,7 @@ export class Qloo {
     const url = new URL("/search", this.base);
     url.searchParams.set("types", KIND_TYPE[kind]);
     url.searchParams.set("query", name);
+    this.calls.search++;
     let data: unknown;
     try { data = await this.get(url); } catch (err) {
       if (err instanceof QlooError && err.status === 404) return null;
@@ -174,7 +179,11 @@ export class Qloo {
     if (ids.length > 0) url.searchParams.set("signal.interests.entities", ids.join(","));
     url.searchParams.set("take", String(clampTake(opts.take)));
     if (opts.candidates?.length) url.searchParams.set("filter.results.entities", opts.candidates.join(","));
-    if (kind === "place" && opts.location) url.searchParams.set("filter.location.query", opts.location);
+    if (kind === "place") {
+      url.searchParams.set("filter.tags", RESTAURANT_TAG);
+      if (opts.location) url.searchParams.set("filter.location.query", opts.location);
+    }
+    this.calls.insights++;
     const data = await this.get(url);
     const out: Array<{ entity: Entity; affinity: number }> = [];
     for (const raw of entitiesFrom(data)) {

@@ -18,13 +18,13 @@ async function apiPick(request: Request, env: Env): Promise<Response> {
   try { body = JSON.parse(raw); } catch { return Response.json({ error: "Send JSON." }, { status: 400 }); }
   const parsed = groupInput.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Choose a category, 2 to 8 different names, and 2 to 5 favourites each. Restaurants need a city." }, { status: 400 });
-  const { kind, members, location } = parsed.data;
+  const { kind, members, location, tasteFrom } = parsed.data;
   const { qloo, mode, note } = dataSource(env.QLOO_API_KEY);
   if (mode === "demo" && kind === "place" && location?.toLowerCase() !== "warsaw") {
     return Response.json({ error: "Demo restaurants are fictional and limited to Warsaw. Try the Warsaw example." }, { status: 422 });
   }
   try {
-    return Response.json({ ...await findCommonGround(qloo, members, kind, location), mode, note }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ ...await findCommonGround(qloo, members, kind, location, tasteFrom), mode, note }, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     const status = err instanceof QlooError ? err.status : 500;
     const message = err instanceof QlooError ? err.message : "Something went wrong. Please try again.";

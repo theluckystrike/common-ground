@@ -297,3 +297,30 @@ test("each person is scored on the shared pool so no one is left at zero by miss
   ], "movie");
   assert.ok(result.pick.winner.min > 0);
 });
+
+test("favourites from another category resolve in that category and score the target category", async () => {
+  const seen: URL[] = [];
+  const fetchFn: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    seen.push(url);
+    if (url.pathname === "/search") return jsonResponse({ results: [{ entity_id: `fav-${url.searchParams.get("query")}`, name: url.searchParams.get("query"), type: "urn:entity:artist" }] });
+    return jsonResponse({ results: { entities: [{ entity_id: "film-1", name: "Her", type: "urn:entity:movie", query: { affinity: 0.9 } }] } });
+  };
+  const result = await findCommonGround(new Qloo("test-key", fetchFn), [
+    { name: "Ana", likes: ["Radiohead", "Bjork"] },
+    { name: "Tom", likes: ["Miles Davis", "Norah Jones"] },
+  ], "movie", undefined, "artist");
+  assert.ok(seen.filter((u) => u.pathname === "/search").every((u) => u.searchParams.get("types") === "urn:entity:artist"));
+  assert.ok(seen.filter((u) => u.pathname === "/v2/insights").every((u) => u.searchParams.get("filter.type") === "urn:entity:movie"));
+  assert.equal(result.pick.winner.entity.name, "Her");
+  assert.equal(result.pick.why["Ana"], "Qloo links it to Ana's taste in Radiohead and Bjork.");
+  assert.deepEqual(result.trace, { tasteFrom: "artist", target: "movie", searches: 4, insights: 4, pool: 1, ms: result.trace.ms });
+});
+
+test("restaurant insights ask Qloo for restaurants only", async () => {
+  const { qloo, calls } = client({ results: { entities: [] } });
+  await qloo.insights([{ id: "x", name: "x", kind: "place", tags: [] }], "place", { take: 5, location: "Lisbon" });
+  const url = new URL(calls[0]!.url);
+  assert.equal(url.searchParams.get("filter.tags"), "urn:tag:genre:place:restaurant");
+  assert.equal(url.searchParams.get("filter.location.query"), "Lisbon");
+});

@@ -669,3 +669,96 @@ body {
 }
 
 .mode-banner { padding: 1rem 1.2rem; border: 1px solid #b89a52; border-radius: 12px; background: #fff7df; color: #453516; font-size: .94rem; line-height: 1.6; }
+
+.taste-field {
+  margin-top: 1rem;
+  max-width: 28rem;
+}
+
+.qloo-work {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #d9d4c7;
+  border-radius: 12px;
+  background: #fbfaf6;
+}
+
+.qloo-work summary {
+  cursor: pointer;
+}
+
+.trace-line {
+  font-weight: 600;
+  margin: 0.75rem 0;
+}
+
+.work-label {
+  font-size: 0.95rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.matched-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.matched-item {
+  margin: 0.25rem 0;
+}
+
+.matched-item .unresolved-name {
+  margin-right: 0.5rem;
+}
+
+.work-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.work-table th,
+.work-table td {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #e6e1d5;
+}
+
+.work-winner td {
+  font-weight: 700;
+  background: #eef6ee;
+}
+
+.work-low {
+  color: #a3412b;
+}
+
+.work-min {
+  font-weight: 700;
+}
+
+.agent-panel {
+  margin: 2.5rem 0 1rem;
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: #1f2328;
+  color: #f4f1ea;
+}
+
+.agent-panel .step-caption {
+  color: #d8d3c8;
+}
+
+.agent-cmd {
+  overflow-x: auto;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #000;
+  color: #9fe6a0;
+  font-size: 0.85rem;
+}
+
+.agent-panel .step-heading {
+  color: #fff;
+}

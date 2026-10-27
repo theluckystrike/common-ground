@@ -8,7 +8,36 @@ const KIND_OPTIONS = [
   { value: "tv_show", label: "TV show", hint: "a series to binge" },
 ];
 
+const TASTE_OPTIONS = [
+  { value: "", label: "The same kind of thing" },
+  { value: "artist", label: "Music artists" },
+  { value: "movie", label: "Movies" },
+  { value: "tv_show", label: "TV shows" },
+  { value: "book", label: "Books" },
+];
+
 const EXAMPLE_GROUPS = [
+  {
+    label: "Movie from music taste",
+    kind: "movie",
+    tasteFrom: "artist",
+    members: [
+      { name: "Ana", likes: ["Radiohead", "Bjork"] },
+      { name: "Tom", likes: ["Kendrick Lamar", "Taylor Swift"] },
+      { name: "Sam", likes: ["Miles Davis", "Norah Jones"] },
+    ],
+  },
+  {
+    label: "Dinner in Lisbon from playlists",
+    kind: "place",
+    tasteFrom: "artist",
+    location: "Lisbon",
+    members: [
+      { name: "Ana", likes: ["Radiohead", "Bjork"] },
+      { name: "Tom", likes: ["Kendrick Lamar", "Taylor Swift"] },
+      { name: "Sam", likes: ["Miles Davis", "Norah Jones"] },
+    ],
+  },
   {
     label: "Family movie night",
     kind: "movie",
@@ -64,7 +93,7 @@ const MAX_MEMBERS = 8;
 const MIN_LIKES = 2;
 const MAX_LIKES = 5;
 
-const state = { kind: null, location: "", members: [] };
+const state = { kind: null, tasteFrom: "", location: "", members: [] };
 
 function el(id) {
   return document.getElementById(id);
@@ -103,6 +132,26 @@ function renderKinds() {
   }
 }
 
+function renderTaste() {
+  const select = el("taste-select");
+  select.replaceChildren();
+  for (const opt of TASTE_OPTIONS) {
+    const o = make("option", "", opt.label);
+    o.value = opt.value;
+    select.append(o);
+  }
+  select.value = state.tasteFrom;
+  select.addEventListener("change", () => {
+    state.tasteFrom = select.value;
+    renderPeople();
+    onMembersChanged();
+  });
+}
+
+function tasteKind() {
+  return state.tasteFrom && state.tasteFrom !== state.kind ? state.tasteFrom : "";
+}
+
 function selectKind(kind) {
   state.kind = kind;
   const radio = document.querySelector(`input[name="kind"][value="${kind}"]`);
@@ -132,6 +181,8 @@ function renderExamples() {
 
 function applyExample(group) {
   state.kind = group.kind;
+  state.tasteFrom = group.tasteFrom || "";
+  el("taste-select").value = state.tasteFrom;
   state.location = group.location || "";
   state.members = group.members.map((m) => ({ name: m.name, likes: m.likes.slice() }));
   const radio = document.querySelector(`input[name="kind"][value="${group.kind}"]`);
@@ -210,7 +261,8 @@ function renderLikeRow(member, i, j, value) {
   input.type = "text";
   input.id = `m${i}-like${j}`;
   input.className = "text-input like-input";
-  input.placeholder = "A thing they love";
+  const from = tasteKind();
+  input.placeholder = from ? `A ${kindName(from).toLowerCase()} they love` : "A thing they love";
   input.maxLength = 80;
   input.autocomplete = "off";
   input.value = value;
@@ -258,12 +310,14 @@ function renderSubmitSummary() {
   const box = el("submit-summary");
   if (!box) return;
   const n = state.members.length;
+  const from = tasteKind();
+  const source = from ? `, picked from their taste in ${TASTE_OPTIONS.find((o) => o.value === from).label.toLowerCase()}` : "";
   if (state.kind === "place") {
     const city = state.location.trim();
-    box.textContent = city ? `A restaurant in ${city} for ${n} people.` : `A restaurant for ${n} people.`;
+    box.textContent = (city ? `A restaurant in ${city} for ${n} people` : `A restaurant for ${n} people`) + `${source}.`;
     return;
   }
-  box.textContent = `A ${kindName(state.kind).toLowerCase()} for ${n} people.`;
+  box.textContent = `A ${kindName(state.kind).toLowerCase()} for ${n} people${source}.`;
 }
 
 function collectMembers() {
@@ -322,6 +376,7 @@ async function findCommonGround() {
   hideResult();
   const payload = { kind: state.kind, members };
   if (state.kind === "place") payload.location = state.location.trim();
+  if (tasteKind()) payload.tasteFrom = tasteKind();
   try {
     const res = await fetch("/api/pick", {
       method: "POST",
@@ -377,6 +432,7 @@ function renderResult(data) {
   box.append(renderScores(pick.winner, pick.why, members));
   if (Array.isArray(pick.runnersUp) && pick.runnersUp.length) box.append(renderRunnersUp(pick.runnersUp));
   box.append(renderUnresolved(members));
+  box.append(renderQlooWork(data.trace, pick, members));
   box.hidden = false;
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -462,6 +518,50 @@ function renderRunnersUp(list) {
   return section;
 }
 
+function renderQlooWork(trace, pick, members) {
+  const section = make("details", "qloo-work");
+  section.open = true;
+  section.append(make("summary", "section-label", "Show Qloo's work"));
+  if (trace) {
+    const calls = trace.searches + trace.insights;
+    const secs = (trace.ms / 1000).toFixed(1);
+    section.append(make("p", "trace-line",
+      `${calls} live Qloo calls in ${secs} s. ${trace.searches} searches matched the favourites. ` +
+      `${trace.insights} Insights calls scored ${trace.pool} shared candidates for every person.`));
+  }
+  const matched = make("ul", "matched-list");
+  for (const m of members) {
+    const li = make("li", "matched-item");
+    li.append(make("span", "unresolved-name", m.name));
+    const names = Array.isArray(m.liked) ? m.liked.map((e) => (e.year ? `${e.name} (${e.year})` : e.name)) : [];
+    li.append(document.createTextNode(`Qloo matched ${names.join(", ") || "nothing"}`));
+    matched.append(li);
+  }
+  section.append(make("h4", "work-label", "1. Favourites matched to Qloo entities"), matched);
+  const rows = [pick.winner].concat(Array.isArray(pick.runnersUp) ? pick.runnersUp : []);
+  const names = members.map((m) => m.name);
+  const table = make("table", "work-table");
+  const head = make("tr");
+  head.append(make("th", "", "Candidate"));
+  for (const n of names) head.append(make("th", "", n));
+  head.append(make("th", "", "Lowest"));
+  table.append(head);
+  rows.forEach((s, i) => {
+    const tr = make("tr", i === 0 ? "work-winner" : "");
+    tr.append(make("td", "", (s.entity && s.entity.name) || ""));
+    for (const n of names) {
+      const v = s.perMember && typeof s.perMember[n] === "number" ? s.perMember[n] : 0;
+      const td = make("td", v === s.min ? "work-low" : "", String(Math.round(v * 100)));
+      tr.append(td);
+    }
+    tr.append(make("td", "work-min", String(Math.round((s.min || 0) * 100))));
+    table.append(tr);
+  });
+  section.append(make("h4", "work-label", "2. Qloo affinity per person, scaled to each person's best match"), table);
+  section.append(make("p", "step-caption", "3. The pick is the row with the highest lowest score. The group average breaks ties."));
+  return section;
+}
+
 function renderUnresolved(members) {
   const section = make("section", "unresolved");
   const items = [];
@@ -469,7 +569,10 @@ function renderUnresolved(members) {
     const missing = Array.isArray(m.unresolved) ? m.unresolved.filter((s) => s) : [];
     if (missing.length) items.push({ name: m.name, missing });
   }
-  if (!items.length) return section;
+  if (!items.length) {
+    section.hidden = true;
+    return section;
+  }
   section.append(make("h3", "section-label", "A few we could not find"));
   const list = make("ul", "unresolved-list");
   for (const item of items) {
@@ -484,6 +587,7 @@ function renderUnresolved(members) {
 
 function init() {
   renderKinds();
+  renderTaste();
   renderExamples();
   applyExample(EXAMPLE_GROUPS[0]);
   fetch("/health").then((res) => {

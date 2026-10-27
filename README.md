@@ -1,20 +1,43 @@
 # Common Ground
 
-Pick one thing for a group without letting the majority overrule one person.
-Each person gives two to five favourites.
-The tool ranks candidates by their lowest member score, then their mean score.
-It returns one pick, three alternatives and a reason for each person.
+**One pick a whole group will enjoy, without leaving one person behind.**
+Each person names a few things they love. Qloo scores every candidate for every person.
+Common Ground picks the option whose least happy person is happiest.
 
-Built for the [Qloo Agentic Hackathon](https://qloo.devpost.com).
-The app provides a web interface and an MCP tool named `find_common_ground`.
+[**Open the live app**](https://common-ground.lipmichal.workers.dev) · [Demo video (1.5 min)](https://youtu.be/IWAe4__XueA) · [MCP endpoint](https://common-ground.lipmichal.workers.dev/mcp) · [Live mode check](https://common-ground.lipmichal.workers.dev/health)
 
-## Try it
+![Three friends list only music. Qloo picks Lady Bird, and everyone scores it at least 90](docs/screenshot-result.png)
 
-[Open the live app](https://common-ground.lipmichal.workers.dev).
-The hosted app uses live Qloo data. Check [/health](https://common-ground.lipmichal.workers.dev/health) for the mode.
-[Public source code](https://github.com/theluckystrike/common-ground).
-The default movie group is ready to run.
-Choose an example and press **Find our common ground**.
+## Why it needs Qloo
+
+- **Cross-domain taste.** Favourites can come from one domain and the pick from another. Three friends list only music artists. Qloo picks a film or a restaurant in Lisbon from that music taste. An LLM alone cannot score that link per person.
+- **A real score for every person.** Qloo Insights gives each person an affinity for every finalist. The app needs those per-person scores to protect the least happy person.
+- **Nothing is made up.** Every favourite is matched with Qloo search. Unknown names are reported, never guessed. A failed live call shows an error, not fake data.
+
+## Try it in 30 seconds
+
+1. Open the [live app](https://common-ground.lipmichal.workers.dev). The "Movie from music taste" group is ready.
+2. Press **Find our common ground**.
+3. Open **Show Qloo's work**. It shows the live call count, the matched Qloo entities and the score of each finalist for each person.
+4. Try "Dinner in Lisbon from playlists" for a restaurant from the same music taste.
+
+No login is needed.
+
+![Show Qloo's work panel with the live call count and the per-person score table](docs/screenshot-qloo-work.png)
+
+## Use it from an agent
+
+The same flow is the MCP tool `find_common_ground` on a Streamable HTTP endpoint.
+
+```sh
+claude mcp add --transport http common-ground https://common-ground.lipmichal.workers.dev/mcp
+```
+
+Then ask your agent, for example "Ana loves Radiohead and Bjork, Tom loves Kendrick Lamar and Taylor Swift. Find us a restaurant in Lisbon."
+The tool input is `kind`, an optional `tasteFrom`, an optional `location` and 2 to 8 `members` with 2 to 5 `likes` each.
+The tool returns the pick, three alternatives, a reason per person and a trace of the Qloo calls.
+
+Built for the [Qloo Agentic Hackathon](https://qloo.devpost.com) by Michael Lip. MIT license.
 
 ## Setup
 
@@ -44,10 +67,10 @@ The Worker reads `QLOO_API_KEY` from its environment.
 On Cloudflare this value is a Worker secret.
 The browser never receives the key.
 
-1. `GET /search` resolves each favourite with `query` and `types`.
+1. `GET /search` resolves each favourite with `query` and `types`. With `tasteFrom`, favourites resolve in that category, for example music artists.
 2. `GET /v2/insights` runs separately for each person.
 3. Each Insights request sends `filter.type`, `signal.interests.entities` and `take=50`.
-4. Restaurant requests also send `filter.location.query`.
+4. Restaurant requests also send `filter.location.query` and `filter.tags=urn:tag:genre:place:restaurant`, so museums and stations drop out.
 5. The client reads each entity's `query.affinity` in the documented zero to one range.
 6. The tool pools the top candidates of every person, up to 50 IDs.
 7. A second Insights call per person scores that pool with `filter.results.entities`.
@@ -122,6 +145,8 @@ List tools and call `find_common_ground` with the same input as `/api/pick`.
 }
 ```
 
+Add `"tasteFrom": "artist"` to pick a movie from music favourites.
+
 The tool returns structured results and plain text.
 It is read only and does not book venues or buy media.
 
@@ -137,12 +162,13 @@ It does not ask users to confirm ambiguous matches.
 Each person gets at most 50 candidates.
 A missing result is treated as zero, which may reflect limited coverage.
 The method does not score every possible candidate for every person.
-It may produce a zero minimum when result sets do not overlap.
+A second Insights pass scores a shared pool of up to 50 candidates for each person, so a zero minimum is rare.
 Match scores are relative within each person's returned list.
 They are not probabilities of enjoyment.
 Reasons use shared tags when available and a named input otherwise.
 They are not model-generated explanations of causality.
 
+Restaurant results can still include bars and cafes that Qloo tags as restaurants.
 A request can make up to 40 searches and 16 Insights calls.
 The public endpoint has no application rate limiter or persistent cache.
 Qloo limits can return HTTP 429.

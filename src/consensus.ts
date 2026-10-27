@@ -55,7 +55,7 @@ function sharedTags(a: Entity, b: Entity): string[] {
   return a.tags.filter((t) => b.tags.includes(t)).sort();
 }
 
-function explain(winner: Entity, member: ResolvedMember): string {
+function explain(winner: Entity, member: ResolvedMember, crossDomain: boolean): string {
   let best: Entity | null = null;
   let bestShared: string[] = [];
   for (const liked of member.liked) {
@@ -69,6 +69,9 @@ function explain(winner: Entity, member: ResolvedMember): string {
     return `${member.name} likes ${bestShared.join(", ")} like ${best.name}, and this is one.`;
   }
   const strongest = member.liked[0];
+  if (strongest && crossDomain) {
+    return `Qloo links it to ${member.name}'s taste in ${member.liked.map((e) => e.name).join(" and ")}.`;
+  }
   if (strongest) {
     return `Closest to ${member.name}'s love of ${strongest.name}.`;
   }
@@ -89,7 +92,7 @@ function fairness(winner: Scored, runnersUp: Scored[], members: ResolvedMember[]
   return `${head}. The next best option leaves ${nextLow} at ${nextPct}%.`;
 }
 
-export function pick(scored: Scored[], members: ResolvedMember[]): Pick {
+export function pick(scored: Scored[], members: ResolvedMember[], crossDomain = false): Pick {
   const likedIds = new Set<string>();
   for (const m of members) for (const e of m.liked) likedIds.add(e.id);
   const candidates = scored.filter((s) => !likedIds.has(s.entity.id));
@@ -97,6 +100,6 @@ export function pick(scored: Scored[], members: ResolvedMember[]): Pick {
   if (!winner) throw new Error("No candidates remain after removing already-liked items.");
   const runnersUp = candidates.slice(1, 4);
   const why: Record<string, string> = Object.create(null);
-  for (const m of members) why[m.name] = explain(winner.entity, m);
+  for (const m of members) why[m.name] = explain(winner.entity, m, crossDomain);
   return { winner, runnersUp, why, fairness: fairness(winner, runnersUp, members) };
 }

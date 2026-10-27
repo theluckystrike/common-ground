@@ -12,7 +12,7 @@
     <div class="wrap">
       <p class="eyebrow">One pick for everyone</p>
       <h1 class="site-title">Common Ground</h1>
-      <p class="tagline">Each person names a few things they love. We look for a shared match.</p>
+      <p class="tagline">Each person names a few things they love. Qloo scores every option for every person. We pick the one that leaves nobody behind.</p>
     </div>
   </header>
 
@@ -28,7 +28,12 @@
       </fieldset>
       <div class="location-field" id="location-field" hidden>
         <label class="field-label" for="location-input">City</label>
-        <input class="text-input" id="location-input" type="text" placeholder="e.g. Warsaw" autocomplete="off">
+        <input class="text-input" id="location-input" type="text" placeholder="e.g. Lisbon" autocomplete="off">
+      </div>
+      <div class="taste-field">
+        <label class="field-label" for="taste-select">Their favourites are</label>
+        <select class="text-input" id="taste-select"></select>
+        <p class="step-caption">Qloo links taste across domains. Music favourites can pick a film or a dinner place.</p>
       </div>
     </section>
 
@@ -50,6 +55,13 @@
     </section>
 
     <section class="result" id="result" aria-live="polite" hidden></section>
+
+    <section class="agent-panel" aria-labelledby="agent-heading">
+      <h2 class="step-heading" id="agent-heading">Use it from your agent</h2>
+      <p class="step-caption">The same Qloo flow is an MCP tool named <code>find_common_ground</code>. Add it to Claude Code with one command.</p>
+      <pre class="agent-cmd"><code>claude mcp add --transport http common-ground https://common-ground.lipmichal.workers.dev/mcp</code></pre>
+      <p class="step-caption">Then ask your agent. "Ana loves Radiohead and Bjork, Tom loves Kendrick Lamar and Taylor Swift. Find us a restaurant in Lisbon."</p>
+    </section>
 
   </main>
 
