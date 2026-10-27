@@ -71,7 +71,7 @@ QLOO_API_KEY=YOUR_API_KEY
 
 1. `GET /search` resolves each favourite across artists, movies, TV shows and books. Each favourite keeps the type Qloo returns.
 2. For each stop (dinner, drinks, live music), one `GET /v2/insights` call sends everyone's favourites as `signal.interests.entities`, `filter.type=urn:entity:place`, `filter.location.query` with the city, a stop tag and `feature.explainability=true`. Stop tags are `urn:tag:genre:place:restaurant`, `urn:tag:category:place:bar` and `urn:tag:genre:place:live_music_venue`.
-3. The top 25 venues form the pool. One more Insights call per friend scores that pool with `filter.results.entities`.
+3. The group call asks for 30 venues inside the city (`filter.location.radius=0`). The app keeps up to 20 real venues. A venue needs opening hours in Qloo and a category that fits the stop, such as a restaurant for dinner. Shops, malls, markets and event rentals are dropped, and so are streets and districts. One more Insights call per friend scores that pool with `filter.results.entities`.
 4. Each stop is the venue with the highest lowest raw affinity. The group average breaks ties. A venue is used only once in the night.
 5. The winner's `query.explainability` scores name the favourites behind it. Each friend's share is the sum of their favourites' scores. A shared favourite is split evenly.
 
@@ -170,7 +170,7 @@ It is read only and does not book venues or buy media.
 
 Night plans have two to six friends with one to four favourites each, and need a large enough city.
 Explainability scores are often close together, so "Picked by" shows influence, not a single cause.
-A bar can also be tagged as a restaurant, and a music venue can be a festival site near the city.
+The venue check uses Qloo category tags and listed hours. It removes streets, districts, shops and markets, but a rooftop bar with a brunch menu can still be the dinner stop.
 
 Groups have two to eight people with different names.
 Each person supplies two to five favourites.

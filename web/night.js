@@ -199,22 +199,28 @@ function renderStop(s, names, color) {
   if (!s.because.length) because.append(make("li", "", "the group's shared taste"));
   card.append(because);
   card.append(make("p", "because-label", "Whose taste counts"));
-  const bar = make("div", "influence");
-  bar.setAttribute("role", "img");
-  bar.setAttribute("aria-label", names.map((n) => `${n} ${pct(s.influence[n])}%`).join(", "));
-  const legend = make("p", "influence-legend");
-  for (const n of names) {
-    const part = make("span");
-    part.style.width = `${pct(s.influence[n])}%`;
-    part.style.background = color(n);
-    bar.append(part);
-    const item = make("span");
-    const dot = make("i");
-    dot.style.background = color(n);
-    item.append(dot, document.createTextNode(`${n} ${pct(s.influence[n])}%`));
-    legend.append(item);
+  // Near-equal shares carry no information, so say that in words instead of drawing four equal bars.
+  const even = names.every((n) => Math.abs((s.influence[n] || 0) - 1 / names.length) < 0.05);
+  if (even) {
+    card.append(make("p", "stop-meta", "Everyone's taste counts about equally here."));
+  } else {
+    const bar = make("div", "influence");
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", names.map((n) => `${n} ${pct(s.influence[n])}%`).join(", "));
+    const legend = make("p", "influence-legend");
+    for (const n of names) {
+      const part = make("span");
+      part.style.width = `${pct(s.influence[n])}%`;
+      part.style.background = color(n);
+      bar.append(part);
+      const item = make("span");
+      const dot = make("i");
+      dot.style.background = color(n);
+      item.append(dot, document.createTextNode(`${n} ${pct(s.influence[n])}%`));
+      legend.append(item);
+    }
+    card.append(bar, legend);
   }
-  card.append(bar, legend);
   card.append(make("p", "stop-scores", "Scores " + names.map((n) => `${n} ${pct(s.winner.perMember[n])}`).join(", ")));
   if (s.alternatives.length) card.append(make("p", "stop-alt", "Also close " + s.alternatives.map((a) => `${a.entity.name} (${pct(a.min)})`).join(", ")));
   return card;

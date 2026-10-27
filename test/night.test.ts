@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { chooseStops, explainPick, planNight, rankRaw, STOPS } from "../src/night.js";
+import { chooseStops, cleanAddress, explainPick, isVenueFor, planNight, rankRaw, STOPS } from "../src/night.js";
 import { Qloo } from "../src/qloo.js";
 import worker from "../src/worker.js";
 import type { Entity, ResolvedMember, Scored } from "../src/types.js";
@@ -30,7 +30,7 @@ test("a recorded Lisbon night plan gives dinner, drinks and live music at three 
   const urls: string[] = [];
   const plan = await planNight(new Qloo("test-key", replay(urls)), recorded.members, recorded.city);
   assert.deepEqual(plan.stops.map((s) => s.key), ["dinner", "drinks", "music"]);
-  assert.deepEqual(plan.stops.map((s) => s.winner.entity.name), ["Bar Terraço de Santa Luzia", "Rua nova do Carvalho", "Lusophonica - Farol De Santa Marta"]);
+  assert.deepEqual(plan.stops.map((s) => s.winner.entity.name), ["Snob Bar", "Bar Terraço de Santa Luzia", "Adega Machado"]);
   assert.equal(new Set(plan.stops.map((s) => s.winner.entity.id)).size, 3);
   assert.deepEqual(plan.trace, { ...plan.trace, searches: 8, insights: 15 });
   // Favourites come from four domains and keep the type Qloo returned.
@@ -60,10 +60,38 @@ test("night plan asks Qloo for explainability once per stop and scores each frie
     const forStop = insights.filter((p) => p.get("filter.tags") === stop.tag);
     assert.equal(forStop.length, 1 + recorded.members.length);
     assert.equal(forStop.filter((p) => p.get("feature.explainability") === "true").length, 1);
-    assert.ok(forStop.every((p) => p.get("filter.location.query") === "Lisbon" && p.get("filter.type") === "urn:entity:place"));
+    assert.ok(forStop.every((p) => p.get("filter.location.query") === "Lisbon" && p.get("filter.location.radius") === "0" && p.get("filter.type") === "urn:entity:place"));
     const pool = forStop.find((p) => p.has("filter.results.entities"))!.get("filter.results.entities")!.split(",");
-    assert.ok(pool.length > 0 && pool.length <= 25);
+    assert.ok(pool.length > 0 && pool.length <= 20);
   }
+});
+
+test("recorded Lisbon pools drop a street, a theatre company and a coffee shop that Qloo tagged as bars or restaurants", async () => {
+  const plan = await planNight(new Qloo("test-key", replay()), recorded.members, recorded.city);
+  const shown = plan.stops.flatMap((s) => [s.winner, ...s.alternatives].map((x) => x.entity.name));
+  for (const bad of ["Rua nova do Carvalho", "Cossoul (Sociedade de Instrução Guilherme Cossoul )", "Palacio Belmonte Cafe & Bar"]) assert.ok(!shown.includes(bad), bad);
+  assert.ok(plan.stops.every((s) => !/[\u3000-\u9fff]/.test(s.winner.entity.address ?? "")));
+});
+
+test("isVenueFor needs opening hours, a fitting category, and no shop or market category", () => {
+  const [dinner, drinks, music] = STOPS;
+  const c = (hours: boolean, ...cats: string[]) => ({ entity: ent("v"), affinity: 0.5, venue: { hours, tags: cats.map((k) => `urn:tag:category:place:${k}`) } });
+  assert.equal(isVenueFor(dinner, c(true, "italian_restaurant")), true);
+  assert.equal(isVenueFor(dinner, c(true, "bar")), false);
+  assert.equal(isVenueFor(dinner, c(false, "restaurant")), false);
+  assert.equal(isVenueFor(dinner, c(true, "restaurant", "market", "tourist_attraction")), false);
+  assert.equal(isVenueFor(drinks, c(true, "cocktail_bar")), true);
+  assert.equal(isVenueFor(drinks, c(true, "barber_shop")), false);
+  assert.equal(isVenueFor(drinks, c(true, "bar", "home_goods_store")), false);
+  assert.equal(isVenueFor(music, c(true, "jazz_club")), true);
+  assert.equal(isVenueFor(music, c(true, "live_music_venue", "wedding_venue")), false);
+  assert.equal(isVenueFor(music, { entity: ent("v"), affinity: 0.5 }), false);
+});
+
+test("cleanAddress drops a Chinese postal-code label and keeps the rest", () => {
+  assert.equal(cleanAddress("Portugal Lisboa R. Nova do Carvalho 邮政编码: 1200-019"), "Portugal Lisboa R. Nova do Carvalho 1200-019");
+  assert.equal(cleanAddress("189 Grand St New York, NY 10013"), "189 Grand St New York, NY 10013");
+  assert.equal(cleanAddress(undefined), undefined);
 });
 
 test("explainPick splits a shared favourite between friends and ignores ids that are not favourites", () => {

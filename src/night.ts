@@ -4,14 +4,17 @@ import { QlooError, type Entity, type Member, type ResolvedMember, type Scored }
 
 /** The three stops of a night out. Each is a Qloo place genre tag in the chosen city. */
 export const STOPS = [
-  { key: "dinner", label: "Dinner", tag: "urn:tag:genre:place:restaurant" },
-  { key: "drinks", label: "Drinks", tag: "urn:tag:category:place:bar" },
-  { key: "music", label: "Live music", tag: "urn:tag:genre:place:live_music_venue" },
+  { key: "dinner", label: "Dinner", tag: "urn:tag:genre:place:restaurant", fits: /restaurant|bistro|brasserie|steak|pizz|sushi|ramen|tapas|trattoria|osteria|izakaya|diner|gastropub|grill/ },
+  { key: "drinks", label: "Drinks", tag: "urn:tag:category:place:bar", fits: /(^|_)(bar|pub|lounge|brewery|taproom|speakeasy)($|_)|wine|cocktail/ },
+  { key: "music", label: "Live music", tag: "urn:tag:genre:place:live_music_venue", fits: /live_music|concert_hall|jazz|music_venue|night_club|nightclub|disco_club|blues|fado/ },
 ] as const;
 
 export const NIGHT_MAX_FRIENDS = 6;
 export const NIGHT_MAX_LIKES = 4;
-const GROUP_TAKE = 25;
+const GROUP_TAKE = 30;
+const POOL_SIZE = 20;
+// Shops, malls, markets and event rentals carry restaurant or bar tags too. They are not a night out.
+const NOT_A_VENUE = /_store|shopping|mall|market|wedding|event_planner|gift_shop|antique/;
 export const NIGHT_NOTE = "Live Qloo responses. Scores are raw Qloo affinity for each friend, from 0 to 100.";
 const SHOWN_REASONS = 3;
 
@@ -30,7 +33,24 @@ export interface Stop {
 export interface NightTrace { searches: number; insights: number; ms: number }
 export interface NightPlan { city: string; stops: Stop[]; members: ResolvedMember[]; trace: NightTrace }
 
-type Candidate = { entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }> };
+type Candidate = { entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }>; venue?: { tags: string[]; hours: boolean } };
+
+/**
+ * Keep only real venues for a stop. Qloo's place tags let streets, districts and shops through,
+ * so a venue needs listed opening hours and a category tag that fits the stop.
+ * Dinner needs a restaurant category, so a bar that also serves food goes to drinks.
+ */
+export function isVenueFor(stop: (typeof STOPS)[number], c: Candidate): boolean {
+  if (!c.venue?.hours) return false;
+  const categories = c.venue.tags.filter((t) => t.startsWith("urn:tag:category:place:")).map((t) => t.slice("urn:tag:category:place:".length));
+  return !categories.some((k) => NOT_A_VENUE.test(k)) && categories.some((k) => stop.fits.test(k));
+}
+
+/** Qloo addresses sometimes carry a postal-code label in Chinese. Drop non-Latin script labels. */
+export function cleanAddress(address: string | undefined): string | undefined {
+  if (!address) return address;
+  return address.replace(/[\u3000-\u9fff\uac00-\ud7af]+[:：]?\s*/g, "").replace(/\s{2,}/g, " ").trim();
+}
 
 /** Turn Qloo's per-input explainability for one pick into named favourites and a share per friend. */
 export function explainPick(explain: Array<{ id: string; score: number }>, members: ResolvedMember[]): { because: Because[]; influence: Record<string, number> } {
@@ -111,11 +131,17 @@ export async function planNight(qloo: Qloo, members: Member[], city: string): Pr
   const everyone = [...new Map(resolved.flatMap((m) => m.liked).map((e) => [e.id, e])).values()];
 
   const perStop = await Promise.all(STOPS.map(async (stop) => {
-    const group: Candidate[] = await qloo.insights(everyone, "place", { take: GROUP_TAKE, location: city, tag: stop.tag, explain: true });
+    const all: Candidate[] = await qloo.insights(everyone, "place", { take: GROUP_TAKE, location: city, tag: stop.tag, explain: true, strictCity: true });
+    const group = all.filter((c) => isVenueFor(stop, c)).slice(0, POOL_SIZE);
+    for (const c of group) c.entity.address = cleanAddress(c.entity.address);
     const pool = group.map((c) => c.entity.id);
     if (pool.length === 0) return { ranked: [] as Scored[], group };
-    const lists = await Promise.all(resolved.map((m) => qloo.insights(m.liked, "place", { take: pool.length, location: city, candidates: pool, tag: stop.tag })));
-    return { ranked: rankRaw(Object.fromEntries(resolved.map((m, i) => [m.name, lists[i] ?? []])), pool), group };
+    const lists = await Promise.all(resolved.map((m) => qloo.insights(m.liked, "place", { take: pool.length, location: city, candidates: pool, tag: stop.tag, strictCity: true })));
+    // Rank with the group call's entity, so the cleaned address is the one shown.
+    const byId = new Map(group.map((c) => [c.entity.id, c.entity]));
+    const ranked = rankRaw(Object.fromEntries(resolved.map((m, i) => [m.name, lists[i] ?? []])), pool);
+    for (const r of ranked) r.entity = byId.get(r.entity.id) ?? r.entity;
+    return { ranked, group };
   }));
 
   const chosen = chooseStops(perStop.map((p) => p.ranked));

@@ -125,6 +125,13 @@ function explainOf(raw: unknown): Array<{ id: string; score: number }> {
   return out;
 }
 
+/** Place category and genre tag IDs, and whether Qloo lists opening hours, so callers can drop streets and districts. */
+function venueOf(raw: unknown): { tags: string[]; hours: boolean } {
+  const o = asRecord(raw);
+  const tags = Array.isArray(o?.["tags"]) ? (o!["tags"] as unknown[]).map((t) => asString(asRecord(t)?.["id"]) ?? "").filter((id) => /^urn:tag:(category|genre):place:/.test(id)) : [];
+  return { tags, hours: asRecord(o?.["properties"])?.["hours"] != null };
+}
+
 function normaliseAffinity(value: number | undefined): number {
   if (value === undefined) return 0;
   return Math.max(0, Math.min(1, value));
@@ -204,7 +211,7 @@ export class Qloo {
    * `tag` overrides the place genre (restaurant by default). `explain` asks Qloo which input
    * entities drove each result (`feature.explainability`), so a pick can name the favourites behind it.
    */
-  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string; candidates?: string[]; tag?: string; explain?: boolean }): Promise<Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }> }>> {
+  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string; candidates?: string[]; tag?: string; explain?: boolean; strictCity?: boolean }): Promise<Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }>; venue?: { tags: string[]; hours: boolean } }>> {
     const url = new URL("/v2/insights", this.base);
     url.searchParams.set("filter.type", KIND_TYPE[kind]);
     const ids = liked.map((e) => e.id).filter(Boolean);
@@ -214,15 +221,20 @@ export class Qloo {
     if (kind === "place") {
       url.searchParams.set("filter.tags", opts.tag ?? RESTAURANT_TAG);
       if (opts.location) url.searchParams.set("filter.location.query", opts.location);
+      // Radius 0 keeps venues inside the city, not in towns 25 km away.
+      if (opts.location && opts.strictCity) url.searchParams.set("filter.location.radius", "0");
     }
     if (opts.explain) url.searchParams.set("feature.explainability", "true");
     this.calls.insights++;
     const data = await this.get(url, opts.explain ? EXPLAIN_TIMEOUT_MS : TIMEOUT_MS);
-    const out: Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }> }> = [];
+    const out: Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }>; venue?: { tags: string[]; hours: boolean } }> = [];
     for (const raw of entitiesFrom(data)) {
       const entity = toEntity(raw, kind);
       if (!entity) continue;
-      out.push(opts.explain ? { entity, affinity: normaliseAffinity(affinityOf(raw)), explain: explainOf(raw) } : { entity, affinity: normaliseAffinity(affinityOf(raw)) });
+      const item: (typeof out)[number] = { entity, affinity: normaliseAffinity(affinityOf(raw)) };
+      if (opts.explain) item.explain = explainOf(raw);
+      if (kind === "place" && opts.tag) item.venue = venueOf(raw);
+      out.push(item);
     }
     return out;
   }
