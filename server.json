@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.theluckystrike/common-ground",
+  "title": "Common Ground",
+  "description": "Pick one movie, show, book, artist or restaurant a whole group will enjoy, using Qloo taste data.",
+  "repository": {
+    "url": "https://github.com/theluckystrike/common-ground",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "websiteUrl": "https://common-ground.lipmichal.workers.dev",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://common-ground.lipmichal.workers.dev/mcp"
+    }
+  ]
+}

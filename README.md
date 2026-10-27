@@ -38,6 +38,8 @@ Then ask your agent, for example "Ana loves Radiohead and Bjork, Tom loves Kendr
 The tool input is `kind`, an optional `tasteFrom` (a category, or `any` for mixed favourites), an optional `location` and 2 to 8 `members` with 2 to 5 `likes` each.
 The tool returns the pick, three alternatives, a reason per person and a trace of the Qloo calls.
 
+Registry name `io.github.theluckystrike/common-ground` in the [official MCP registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.theluckystrike/common-ground).
+
 Built for the [Qloo Agentic Hackathon](https://qloo.devpost.com) by Michael Lip. MIT license.
 
 ## Setup
