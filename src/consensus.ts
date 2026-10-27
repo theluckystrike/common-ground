@@ -82,8 +82,11 @@ function fairness(winner: Scored, runnersUp: Scored[], members: ResolvedMember[]
   const head = `Everyone scores it at least ${minPct}%`;
   const next = runnersUp[0];
   if (!next) return `${head}.`;
-  const nextPct = Math.round((next.perMember[name] ?? 0) * 100);
-  return `${head}; the next best option leaves ${name} at ${nextPct}%.`;
+  // Name the runner-up's own least happy person, so the comparison always shows what the group gives up.
+  const nextPct = Math.round(next.min * 100);
+  if (nextPct >= minPct) return `${head}. The next best option ties on the lowest score, so the group average decides.`;
+  const nextLow = members.find((m) => next.perMember[m.name] === next.min)?.name ?? name;
+  return `${head}. The next best option leaves ${nextLow} at ${nextPct}%.`;
 }
 
 export function pick(scored: Scored[], members: ResolvedMember[]): Pick {

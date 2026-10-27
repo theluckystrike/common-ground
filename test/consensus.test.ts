@@ -175,5 +175,12 @@ test("pick: fairness names the least happy person and the next best option", () 
   const winner: Scored = { entity: win, perMember: { Ana: 0.8, Tom: 1.0 }, min: 0.8, mean: 0.9 };
   const runner: Scored = { entity: run, perMember: { Ana: 0.4, Tom: 1.0 }, min: 0.4, mean: 0.7 };
   const p = pick([winner, runner], [member("Ana"), member("Tom")]);
-  assert.equal(p.fairness, "Everyone scores it at least 80%; the next best option leaves Ana at 40%.");
+  assert.equal(p.fairness, "Everyone scores it at least 80%. The next best option leaves Ana at 40%.");
+});
+
+test("pick: fairness names the runner-up's own least happy person", () => {
+  const winner: Scored = { entity: ent("win", "Winner", []), perMember: { Ana: 1.0, Sam: 0.86 }, min: 0.86, mean: 0.93 };
+  const runner: Scored = { entity: ent("run", "Runner", []), perMember: { Ana: 0.7, Sam: 0.99 }, min: 0.7, mean: 0.845 };
+  const p = pick([winner, runner], [member("Ana"), member("Sam")]);
+  assert.equal(p.fairness, "Everyone scores it at least 86%. The next best option leaves Ana at 70%.");
 });
