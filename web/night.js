@@ -164,9 +164,9 @@ function render(data) {
   const work = make("details", "qloo-work");
   work.open = true;
   work.append(make("summary", "section-label", "Show Qloo's work"));
-  work.append(make("p", "trace-line", data.cached
-    ? "Same plan as a request in the last 30 minutes, so no new Qloo calls were made."
-    : `${t.searches + t.insights} live Qloo calls in ${(t.ms / 1000).toFixed(1)} s. ${t.searches} searches matched the favourites. ${t.insights} Insights calls. Per stop, one group call with explainability and one call per friend.`));
+  work.append(make("p", "trace-line",
+    `${t.searches + t.insights} live Qloo calls in ${(t.ms / 1000).toFixed(1)} s. ${t.searches} searches matched the favourites. ${t.insights} Insights calls. Per stop, one group call with explainability and one call per friend.` +
+    (data.cached ? " This plan was made in the last 30 minutes and is shown again without new calls." : "")));
   const matched = make("ul", "matched-list");
   for (const m of data.members) {
     const li = make("li", "matched-item");

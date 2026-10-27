@@ -5,7 +5,7 @@ For friends who argue about where to go. Everyone names a few bands, films, show
 Qloo's cross-domain taste graph turns that shared taste into dinner, drinks and live music in your city.
 Each stop names the favourites that picked it and shows how much each friend's taste counts.
 
-[**Open the live app**](https://common-ground.lipmichal.workers.dev) · [Demo video (85 s)](https://youtu.be/Nhzf27ZEGS4) · [MCP endpoint](https://common-ground.lipmichal.workers.dev/mcp) · [Live mode check](https://common-ground.lipmichal.workers.dev/health)
+[**Open the live app**](https://common-ground.lipmichal.workers.dev) · [Demo video (85 s)](https://youtu.be/npgyKhITMVI) · [MCP endpoint](https://common-ground.lipmichal.workers.dev/mcp) · [Live mode check](https://common-ground.lipmichal.workers.dev/health)
 
 ![Four friends list music, films, TV and books. Qloo plans dinner, drinks and live music in Lisbon, and each stop names the favourites behind it](docs/screenshot-night-plan.png)
 
