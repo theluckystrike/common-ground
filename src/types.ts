@@ -5,7 +5,9 @@ export interface Entity { id: string; name: string; kind: Kind; tags: string[]; 
 export interface Member { name: string; likes: string[] }
 export interface ResolvedMember { name: string; liked: Entity[]; unresolved: string[] }
 export interface Scored { entity: Entity; perMember: Record<string, number>; min: number; mean: number }
-export interface Trace { tasteFrom: Kind; target: Kind; searches: number; insights: number; pool: number; ms: number }
+/** Where favourites come from. "any" lets each favourite be a music artist, movie, TV show or book. */
+export type TasteFrom = Kind | "any";
+export interface Trace { tasteFrom: TasteFrom; target: Kind; searches: number; insights: number; pool: number; ms: number }
 export interface Pick { winner: Scored; runnersUp: Scored[]; why: Record<string, string>; fairness: string }
 
 export class QlooError extends Error {

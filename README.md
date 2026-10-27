@@ -10,7 +10,7 @@ Common Ground picks the option whose least happy person is happiest.
 
 ## Why it needs Qloo
 
-- **Cross-domain taste.** Favourites can come from one domain and the pick from another. Three friends list only music artists. Qloo picks a film or a restaurant in Lisbon from that music taste. An LLM alone cannot score that link per person.
+- **Cross-domain taste.** Favourites can come from one domain and the pick from another. Three friends list only music artists. Qloo picks a film or a restaurant in Lisbon from that music taste. With "Anything", one person can give a band and a book, and another a film and a TV show. An LLM alone cannot score that link per person.
 - **A real score for every person.** Qloo Insights gives each person an affinity for every finalist. The app needs those per-person scores to protect the least happy person.
 - **Nothing is made up.** Every favourite is matched with Qloo search. Unknown names are reported, never guessed. A failed live call shows an error, not fake data.
 
@@ -20,6 +20,7 @@ Common Ground picks the option whose least happy person is happiest.
 2. Press **Find our common ground**.
 3. Open **Show Qloo's work**. It shows the live call count, the matched Qloo entities and the score of each finalist for each person.
 4. Try "Dinner in Lisbon from playlists" for a restaurant from the same music taste.
+5. Try "Mixed tastes, one TV show". Each favourite can be a band, a film, a show or a book.
 
 No login is needed.
 
@@ -34,7 +35,7 @@ claude mcp add --transport http common-ground https://common-ground.lipmichal.wo
 ```
 
 Then ask your agent, for example "Ana loves Radiohead and Bjork, Tom loves Kendrick Lamar and Taylor Swift. Find us a restaurant in Lisbon."
-The tool input is `kind`, an optional `tasteFrom`, an optional `location` and 2 to 8 `members` with 2 to 5 `likes` each.
+The tool input is `kind`, an optional `tasteFrom` (a category, or `any` for mixed favourites), an optional `location` and 2 to 8 `members` with 2 to 5 `likes` each.
 The tool returns the pick, three alternatives, a reason per person and a trace of the Qloo calls.
 
 Built for the [Qloo Agentic Hackathon](https://qloo.devpost.com) by Michael Lip. MIT license.

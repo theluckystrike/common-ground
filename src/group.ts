@@ -1,12 +1,12 @@
 import { pick, score } from "./consensus.js";
 import { Qloo } from "./qloo.js";
-import { QlooError, type Entity, type Kind, type Member, type Pick, type ResolvedMember, type Trace } from "./types.js";
+import { QlooError, type Entity, type Kind, type Member, type Pick, type ResolvedMember, type TasteFrom, type Trace } from "./types.js";
 
 export const MAX_MEMBERS = 8;
 export const MAX_LIKES = 5;
 
 /** Resolve every like to a Qloo entity, in parallel. Unknown names are reported, never guessed. */
-export async function resolveMembers(qloo: Qloo, members: Member[], kind: Kind): Promise<ResolvedMember[]> {
+export async function resolveMembers(qloo: Qloo, members: Member[], kind: TasteFrom): Promise<ResolvedMember[]> {
   return Promise.all(members.map(async (m) => {
     const likes = m.likes.map((l) => l.trim()).filter(Boolean).slice(0, MAX_LIKES);
     const found = await Promise.all(likes.map((l) => qloo.search(l, kind)));
@@ -18,8 +18,9 @@ export async function resolveMembers(qloo: Qloo, members: Member[], kind: Kind):
 /**
  * The whole agent step: resolve likes, ask Qloo for each person's affinities, then pick fairly.
  * `tasteFrom` lets favourites come from another domain, so music taste can pick a film or a restaurant.
+ * With "any", each favourite can be from a different domain.
  */
-export async function findCommonGround(qloo: Qloo, members: Member[], kind: Kind, location?: string, tasteFrom: Kind = kind): Promise<{ pick: Pick; members: ResolvedMember[]; trace: Trace }> {
+export async function findCommonGround(qloo: Qloo, members: Member[], kind: Kind, location?: string, tasteFrom: TasteFrom = kind): Promise<{ pick: Pick; members: ResolvedMember[]; trace: Trace }> {
   if (members.length < 2 || members.length > MAX_MEMBERS) throw new QlooError(400, `Add between 2 and ${MAX_MEMBERS} people.`);
   const started = Date.now();
   const before = { ...qloo.calls };

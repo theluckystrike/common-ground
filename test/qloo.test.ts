@@ -324,3 +324,14 @@ test("restaurant insights ask Qloo for restaurants only", async () => {
   assert.equal(url.searchParams.get("filter.tags"), "urn:tag:genre:place:restaurant");
   assert.equal(url.searchParams.get("filter.location.query"), "Lisbon");
 });
+
+test("any favourites search several types and keep the type Qloo returns", async () => {
+  const { qloo, calls } = client({ results: [
+    { entity_id: "p1", name: "Radiohead: In Rainbows", types: ["urn:entity:podcast"] },
+    { entity_id: "b1", name: "Normal People", types: ["urn:entity:book"] },
+  ] });
+  const entity = await qloo.search("Normal People", "any");
+  assert.equal(new URL(calls[0]!.url).searchParams.get("types"), "urn:entity:artist,urn:entity:movie,urn:entity:tv_show,urn:entity:book");
+  assert.equal(entity?.id, "b1");
+  assert.equal(entity?.kind, "book");
+});

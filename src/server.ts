@@ -9,7 +9,7 @@ export function createServer(apiKey: string | undefined): McpServer {
   const server = new McpServer({ name: "common-ground", version: "1.0.0" });
   server.registerTool("find_common_ground", {
     title: "Find common ground for a group",
-    description: "Pick ONE movie, TV show, book, music artist, podcast, restaurant (kind=place, with location) or destination that a whole group will enjoy. Give each person's name and 2 to 5 things they love. Favourites can come from another category with tasteFrom, for example music artists to pick a restaurant. Uses Qloo's taste graph to score every candidate for every person and returns the option that makes the least happy person as happy as possible, with a reason per person.",
+    description: "Pick ONE movie, TV show, book, music artist, podcast, restaurant (kind=place, with location) or destination that a whole group will enjoy. Give each person's name and 2 to 5 things they love. Favourites can come from another category with tasteFrom, for example music artists to pick a restaurant, or any for a mix of artists, movies, TV shows and books. Uses Qloo's taste graph to score every candidate for every person and returns the option that makes the least happy person as happy as possible, with a reason per person.",
     inputSchema: groupInput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async ({ kind, location, members, tasteFrom }) => {

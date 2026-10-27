@@ -1,4 +1,4 @@
-import { QlooError, type Entity, type Kind } from "./types.js";
+import { QlooError, type Entity, type Kind, type TasteFrom } from "./types.js";
 
 const DEFAULT_BASE = "https://hackathon.api.qloo.com";
 const TIMEOUT_MS = 5_000;
@@ -22,6 +22,17 @@ const KIND_TYPE: Record<Kind, string> = {
   destination: "urn:entity:destination",
   video_game: "urn:entity:videogame",
 };
+
+// "any" favourites are searched across these types and keep the type Qloo returns.
+const ANY_KINDS: Kind[] = ["artist", "movie", "tv_show", "book"];
+const TYPE_KIND = new Map(Object.entries(KIND_TYPE).map(([k, v]) => [v, k as Kind]));
+
+function rawType(raw: unknown): string | undefined {
+  const o = asRecord(raw);
+  if (!o) return undefined;
+  const type = o["entity_type"] ?? o["type"] ?? o["kind"] ?? (Array.isArray(o["types"]) ? o["types"][0] : undefined);
+  return typeof type === "string" ? type : undefined;
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
@@ -103,10 +114,9 @@ function normaliseAffinity(value: number | undefined): number {
 }
 
 function matchesType(raw: unknown, kind: Kind): boolean {
-  const o = asRecord(raw);
-  if (!o) return false;
-  const type = o["entity_type"] ?? o["type"] ?? o["kind"];
-  if (typeof type !== "string") return true;
+  if (!asRecord(raw)) return false;
+  const type = rawType(raw);
+  if (type === undefined) return true;
   const got = type.replace("urn:entity:", "").replace(/_/g, "");
   return got === kind.replace(/_/g, "");
 }
@@ -154,9 +164,9 @@ export class Qloo {
     if (slot > now) await new Promise((r) => setTimeout(r, slot - now));
   }
 
-  async search(name: string, kind: Kind): Promise<Entity | null> {
+  async search(name: string, kind: TasteFrom): Promise<Entity | null> {
     const url = new URL("/search", this.base);
-    url.searchParams.set("types", KIND_TYPE[kind]);
+    url.searchParams.set("types", kind === "any" ? ANY_KINDS.map((k) => KIND_TYPE[k]).join(",") : KIND_TYPE[kind]);
     url.searchParams.set("query", name);
     this.calls.search++;
     let data: unknown;
@@ -165,8 +175,9 @@ export class Qloo {
       throw err;
     }
     for (const raw of entitiesFrom(data)) {
-      if (!matchesType(raw, kind)) continue;
-      const entity = toEntity(raw, kind);
+      const found = kind === "any" ? TYPE_KIND.get(rawType(raw) ?? "") : kind;
+      if (!found || (kind === "any" && !ANY_KINDS.includes(found)) || !matchesType(raw, found)) continue;
+      const entity = toEntity(raw, found);
       if (entity) return entity;
     }
     return null;

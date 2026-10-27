@@ -10,6 +10,7 @@ const KIND_OPTIONS = [
 
 const TASTE_OPTIONS = [
   { value: "", label: "The same kind of thing" },
+  { value: "any", label: "Anything (music, films, TV, books)" },
   { value: "artist", label: "Music artists" },
   { value: "movie", label: "Movies" },
   { value: "tv_show", label: "TV shows" },
@@ -36,6 +37,16 @@ const EXAMPLE_GROUPS = [
       { name: "Ana", likes: ["Radiohead", "Bjork"] },
       { name: "Tom", likes: ["Kendrick Lamar", "Taylor Swift"] },
       { name: "Sam", likes: ["Miles Davis", "Norah Jones"] },
+    ],
+  },
+  {
+    label: "Mixed tastes, one TV show",
+    kind: "tv_show",
+    tasteFrom: "any",
+    members: [
+      { name: "Ana", likes: ["Radiohead", "Dune"] },
+      { name: "Tom", likes: ["Kendrick Lamar", "The Bear"] },
+      { name: "Priya", likes: ["Normal People", "Phoebe Bridgers"] },
     ],
   },
   {
@@ -262,7 +273,7 @@ function renderLikeRow(member, i, j, value) {
   input.id = `m${i}-like${j}`;
   input.className = "text-input like-input";
   const from = tasteKind();
-  input.placeholder = from ? `A ${kindName(from).toLowerCase()} they love` : "A thing they love";
+  input.placeholder = from === "any" ? "A band, film, show or book they love" : from ? `A ${kindName(from).toLowerCase()} they love` : "A thing they love";
   input.maxLength = 80;
   input.autocomplete = "off";
   input.value = value;
@@ -311,7 +322,8 @@ function renderSubmitSummary() {
   if (!box) return;
   const n = state.members.length;
   const from = tasteKind();
-  const source = from ? `, picked from their taste in ${TASTE_OPTIONS.find((o) => o.value === from).label.toLowerCase()}` : "";
+  const source = from === "any" ? ", picked from their mixed tastes"
+    : from ? `, picked from their taste in ${TASTE_OPTIONS.find((o) => o.value === from).label.toLowerCase()}` : "";
   if (state.kind === "place") {
     const city = state.location.trim();
     box.textContent = (city ? `A restaurant in ${city} for ${n} people` : `A restaurant for ${n} people`) + `${source}.`;
@@ -533,7 +545,9 @@ function renderQlooWork(trace, pick, members) {
   for (const m of members) {
     const li = make("li", "matched-item");
     li.append(make("span", "unresolved-name", m.name));
-    const names = Array.isArray(m.liked) ? m.liked.map((e) => (e.year ? `${e.name} (${e.year})` : e.name)) : [];
+    const names = Array.isArray(m.liked)
+      ? m.liked.map((e) => `${e.name} (${[kindName(e.kind).toLowerCase(), e.year].filter(Boolean).join(", ")})`)
+      : [];
     li.append(document.createTextNode(`Qloo matched ${names.join(", ") || "nothing"}`));
     matched.append(li);
   }

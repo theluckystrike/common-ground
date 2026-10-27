@@ -4,7 +4,7 @@ export const KINDS = ["movie", "tv_show", "book", "artist", "podcast", "place", 
 
 export const groupInput = z.object({
   kind: z.enum(KINDS),
-  tasteFrom: z.enum(KINDS).optional().describe("Category of the favourites, when it differs from kind. Example: music artists to pick a movie."),
+  tasteFrom: z.enum([...KINDS, "any"]).optional().describe("Category of the favourites, when it differs from kind. Example artist, to pick a movie from music. Use any when favourites mix music artists, movies, TV shows and books."),
   location: z.string().trim().min(1).max(80).optional(),
   members: z.array(z.object({
     name: z.string().trim().min(1).max(40),
