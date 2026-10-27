@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { findCommonGround } from "../src/group.js";
 import { Qloo } from "../src/qloo.js";
 import { QlooError, type Entity } from "../src/types.js";
 
@@ -250,4 +251,49 @@ test("the constructor base override is honoured", async () => {
   })();
   await qloo.search("X", "movie");
   assert.ok(calls[0]!.url.startsWith("https://example.com/search"));
+});
+
+test("default fetch is called without the client as its receiver, as Workers require", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async function (this: unknown) {
+    if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+    return jsonResponse({ results: { entities: [] } });
+  } as typeof fetch;
+  try {
+    assert.equal(await new Qloo("test-key").search("Inception", "movie"), null);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("a 429 is retried and a later success is returned", async () => {
+  let n = 0;
+  const fetchFn: typeof fetch = async () => (++n < 2 ? jsonResponse({}, 429) : jsonResponse({ results: { entities: [] } }));
+  assert.equal(await new Qloo("test-key", fetchFn).search("Inception", "movie"), null);
+  assert.equal(n, 2);
+});
+
+test("calls from one client are spaced to stay under 10 per second", async () => {
+  const starts: number[] = [];
+  const fetchFn: typeof fetch = async () => { starts.push(Date.now()); return jsonResponse({ results: { entities: [] } }); };
+  const qloo = new Qloo("test-key", fetchFn);
+  await Promise.all(Array.from({ length: 11 }, () => qloo.search("X", "movie")));
+  assert.ok(starts[10]! - starts[0]! >= 1_000);
+});
+
+test("each person is scored on the shared pool so no one is left at zero by missing overlap", async () => {
+  const ent = (id: string, affinity?: number) => ({ entity_id: id, name: id, type: "urn:entity:movie", ...(affinity === undefined ? {} : { query: { affinity } }) });
+  const fetchFn: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/search") return jsonResponse({ results: [ent(`fav-${url.searchParams.get("query")}`)] });
+    const pool = url.searchParams.get("filter.results.entities");
+    const me = url.searchParams.get("signal.interests.entities")!;
+    if (pool) return jsonResponse({ results: { entities: pool.split(",").map((id) => ent(id, 0.5)) } });
+    return jsonResponse({ results: { entities: [ent(me.includes("fav-A") ? "only-ana" : "only-tom", 0.9)] } });
+  };
+  const result = await findCommonGround(new Qloo("test-key", fetchFn), [
+    { name: "Ana", likes: ["A1", "A2"] },
+    { name: "Tom", likes: ["T1", "T2"] },
+  ], "movie");
+  assert.ok(result.pick.winner.min > 0);
 });

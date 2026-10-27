@@ -304,7 +304,7 @@ async function readJson(res) {
 }
 
 function fallbackMessage(res) {
-  if (res.status === 503) return "The demo has no Qloo API key configured yet.";
+  if (res.status === 503) return "The app has no Qloo API key configured.";
   if (res.status >= 500) return "Something went wrong on our side. Please try again.";
   return "Something went wrong. Please try again.";
 }
@@ -490,7 +490,7 @@ function init() {
     if (!res.ok) throw new Error("Health check failed.");
     return res.json();
   }).then((data) => {
-    el("mode-banner").textContent = data.mode === "demo" ? data.note : "Live mode is configured. A successful pick confirms a Qloo response.";
+    el("mode-banner").textContent = data.mode === "demo" ? data.note : "Live mode. Picks use live Qloo searches and Insights scores.";
   }).catch(() => { el("mode-banner").textContent = "Could not check the data source. Each result will show its mode."; });
   renderPeople();
   updateStepVisibility();

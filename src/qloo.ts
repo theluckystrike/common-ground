@@ -5,6 +5,10 @@ const TIMEOUT_MS = 5_000;
 const MAX_TAGS = 12;
 const MAX_TAKE = 50;
 const DEFAULT_TAKE = 20;
+// The hackathon key allows 10 requests per second. Space calls to stay under it.
+const GAP_MS = 125;
+const RETRY_429_MS = 1_000;
+const RETRIES_429 = 2;
 
 const KIND_TYPE: Record<Kind, string> = {
   movie: "urn:entity:movie",
@@ -131,9 +135,20 @@ async function httpError(response: Response): Promise<QlooError> {
 export class Qloo {
   constructor(
     private readonly key: string,
-    private readonly fetchFn: typeof fetch = fetch,
+    // Workers throw "Illegal invocation" when global fetch is called as a method, so wrap it.
+    private readonly fetchFn: typeof fetch = (input, init) => fetch(input, init),
     private readonly base: string = DEFAULT_BASE,
   ) {}
+
+  private nextSlot = 0;
+
+  /** Reserve the next send time so one group request never bursts past the per-second limit. */
+  private async pace(): Promise<void> {
+    const now = Date.now();
+    const slot = Math.max(now, this.nextSlot);
+    this.nextSlot = slot + GAP_MS;
+    if (slot > now) await new Promise((r) => setTimeout(r, slot - now));
+  }
 
   async search(name: string, kind: Kind): Promise<Entity | null> {
     const url = new URL("/search", this.base);
@@ -152,12 +167,13 @@ export class Qloo {
     return null;
   }
 
-  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string }): Promise<Array<{ entity: Entity; affinity: number }>> {
+  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string; candidates?: string[] }): Promise<Array<{ entity: Entity; affinity: number }>> {
     const url = new URL("/v2/insights", this.base);
     url.searchParams.set("filter.type", KIND_TYPE[kind]);
     const ids = liked.map((e) => e.id).filter(Boolean);
     if (ids.length > 0) url.searchParams.set("signal.interests.entities", ids.join(","));
     url.searchParams.set("take", String(clampTake(opts.take)));
+    if (opts.candidates?.length) url.searchParams.set("filter.results.entities", opts.candidates.join(","));
     if (kind === "place" && opts.location) url.searchParams.set("filter.location.query", opts.location);
     const data = await this.get(url);
     const out: Array<{ entity: Entity; affinity: number }> = [];
@@ -170,6 +186,16 @@ export class Qloo {
   }
 
   private async get(url: URL): Promise<unknown> {
+    for (let attempt = 0; ; attempt++) {
+      try { return await this.getOnce(url); } catch (err) {
+        if (!(err instanceof QlooError) || err.status !== 429 || attempt >= RETRIES_429) throw err;
+        await new Promise((r) => setTimeout(r, RETRY_429_MS));
+      }
+    }
+  }
+
+  private async getOnce(url: URL): Promise<unknown> {
+    await this.pace();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     let response: Response;
