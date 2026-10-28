@@ -202,7 +202,7 @@ function renderStop(s, names, color) {
   const next = s.alternatives[0];
   const gap = next ? pct(s.winner.min) - pct(next.min) : null;
   const close = gap !== null && gap <= 1 ? ` Close call. ${next.entity.name} scores within 1 point.` : "";
-  card.append(make("p", "stop-min", `Everyone scores it at least ${pct(s.winner.min)}.${close}`));
+  card.append(make("p", "stop-min", `Lowest Qloo taste affinity ${pct(s.winner.min)} out of 100.${close}`));
   card.append(make("p", "because-label", "Picked by"));
   const because = make("ul", "because");
   // Qloo explainability is often near-uniform. Then the honest reading is a balanced compromise, not one cause.
@@ -235,7 +235,7 @@ function renderStop(s, names, color) {
     }
     card.append(bar, legend);
   }
-  card.append(make("p", "stop-scores", "Scores " + names.map((n) => `${n} ${pct(s.winner.perMember[n])}`).join(", ")));
+  card.append(make("p", "stop-scores", "Qloo affinity " + names.map((n) => `${n} ${pct(s.winner.perMember[n])}`).join(", ")));
   if (s.alternatives.length) card.append(make("p", "stop-alt", "Also close " + s.alternatives.map((a) => `${a.entity.name} (${pct(a.min)})`).join(", ")));
   return card;
 }

@@ -68,6 +68,9 @@ test("night result labels times as suggestions and says opening hours are unveri
   assert.match(out, /suggestions only/i);
   assert.match(out, /opening hours/i);
   assert.match(out, /availability/i);
+  assert.match(out, /Lowest Qloo taste affinity 70 out of 100/);
+  assert.match(out, /Qloo affinity Ana 80, Tom 70/);
+  assert.doesNotMatch(out, /Everyone scores it/);
   assert.doesNotMatch(out, /incomplete/i);
   assert.ok(nodes(box).some((n) => n.className === "schedule-note" && n.attrs.role === "note"));
 });
