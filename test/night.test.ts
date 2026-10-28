@@ -99,6 +99,50 @@ test("cleanAddress drops a Chinese postal-code label and keeps the rest", () => 
   assert.equal(cleanAddress(undefined), undefined);
 });
 
+test("cleanAddress keeps Chinese street and place text and only removes the postal-code label", () => {
+  assert.equal(cleanAddress("北京市朝阳区建国路88号 邮政编码: 100022"), "北京市朝阳区建国路88号 100022");
+  assert.equal(cleanAddress("東京都渋谷区神南1丁目 邮政编码：150-0041"), "東京都渋谷区神南1丁目 150-0041");
+  assert.equal(cleanAddress("서울특별시 강남구 테헤란로 邮政编码: 06164"), "서울특별시 강남구 테헤란로 06164");
+  assert.equal(cleanAddress("北京市朝阳区建国路88号"), "北京市朝阳区建国路88号");
+  assert.equal(cleanAddress("邮政编码路12号"), "邮政编码路12号");
+});
+
+const artistSearch = { results: { entities: [{ entity_id: "a", name: "Radiohead", entity_type: "urn:entity:artist" }] } };
+const dinnerVenue = { results: { entities: [{
+  entity_id: "v1", name: "Dinner Only",
+  tags: [{ id: "urn:tag:category:place:italian_restaurant" }],
+  properties: { hours: { mon: "18:00-23:00" } },
+  query: { affinity: 0.8, explainability: { "signal.interests.entities": [{ entity_id: "a", score: 0.5 }] } },
+}] } };
+
+function stopFetch(tagsWithVenue: Set<string>): typeof fetch {
+  return async (input) => {
+    const u = new URL(String(input));
+    const body = u.pathname === "/search" ? artistSearch : u.pathname === "/v2/insights" && tagsWithVenue.has(u.searchParams.get("filter.tags") ?? "") ? dinnerVenue : { results: { entities: [] } };
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  };
+}
+
+const twoFriends = [{ name: "Ana", likes: ["Radiohead"] }, { name: "Tom", likes: ["Dune"] }];
+
+test("a plan with one empty stop keeps the other stops and names the missing ones", async () => {
+  const plan = await planNight(new Qloo("test-key", stopFetch(new Set(["urn:tag:genre:place:restaurant"]))), twoFriends, "Lisbon");
+  assert.equal(plan.complete, false);
+  assert.deepEqual(plan.stops.map((s) => s.key), ["dinner"]);
+  assert.equal(plan.stops[0]!.winner.entity.name, "Dinner Only");
+  assert.deepEqual(plan.missingStops.map((s) => s.label), ["Drinks", "Live music"]);
+  // The surviving stop stays a full, explained stop, not a stub.
+  assert.ok(plan.stops[0]!.because.length > 0);
+  assert.equal(Object.keys(plan.stops[0]!.influence).length, 2);
+});
+
+test("a complete failure to find any stop stays an error, not a fake partial plan", async () => {
+  await assert.rejects(
+    planNight(new Qloo("test-key", stopFetch(new Set())), twoFriends, "Lisbon"),
+    (err: unknown) => err instanceof Error && "status" in err && (err as { status: number }).status === 404,
+  );
+});
+
 test("explainPick splits a shared favourite between friends and ignores ids that are not favourites", () => {
   const members = [member("Ana", "a", "shared"), member("Tom", "t", "shared")];
   const { because, influence } = explainPick([{ id: "shared", score: 0.4 }, { id: "a", score: 0.4 }, { id: "t", score: 0.2 }, { id: "stranger", score: 0.9 }], members);
@@ -174,4 +218,37 @@ test("a slow Qloo answer is retried once before the user sees an error", async (
   const out = await new Qloo("test-key", fetchFn).insights([ent("a")], "place", { take: 5, location: "Lisbon", explain: true });
   assert.equal(calls, 2);
   assert.deepEqual(out[0]!.explain, [{ id: "a", score: 0.7 }]);
+});
+
+
+test("/api/night exposes missing stops and preserves a useful partial plan", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = stopFetch(new Set(["urn:tag:genre:place:restaurant"]));
+  try {
+    const res = await worker.fetch(new Request("https://example.test/api/night", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ city: "Kyoto", members: twoFriends }),
+    }), { ASSETS: { fetch: async () => new Response("asset") }, QLOO_API_KEY: "test-key" });
+    assert.equal(res.status, 200);
+    const body = await res.json() as { complete: boolean; missingStops: Array<{ key: string }>; stops: Array<{ key: string }> };
+    assert.equal(body.complete, false);
+    assert.deepEqual(body.missingStops.map((s) => s.key), ["drinks", "music"]);
+    assert.deepEqual(body.stops.map((s) => s.key), ["dinner"]);
+  } finally { globalThis.fetch = original; }
+});
+
+test("/api/night keeps a provider outage as a live error with no invented stops", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("provider offline"); };
+  try {
+    const res = await worker.fetch(new Request("https://example.test/api/night", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ city: "Seoul", members: twoFriends }),
+    }), { ASSETS: { fetch: async () => new Response("asset") }, QLOO_API_KEY: "test-key" });
+    assert.equal(res.status, 502);
+    const body = await res.json() as Record<string, unknown>;
+    assert.equal(body.mode, "live");
+    assert.equal(typeof body.error, "string");
+    assert.equal("stops" in body, false);
+  } finally { globalThis.fetch = original; }
 });

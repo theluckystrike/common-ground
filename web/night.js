@@ -37,6 +37,7 @@ const NIGHT_EXAMPLES = [
 const MAX_FRIENDS = 6;
 const MAX_LIKES = 4;
 const COLORS = ["#c4633a", "#3f7d6e", "#6a5acd", "#a8742a", "#b23a6a", "#3a6fb2"];
+// Suggested times only. We do not check dates, opening hours or availability.
 const STOP_TIME = { dinner: "8 pm", drinks: "10 pm", music: "11 pm" };
 const KIND = { artist: "music", movie: "film", tv_show: "TV", book: "book" };
 
@@ -148,12 +149,21 @@ async function plan() {
   }
 }
 
-function render(data) {
+export function render(data) {
   const box = $("night-result");
   box.replaceChildren();
   const names = data.members.map((m) => m.name);
   const color = (n) => COLORS[names.indexOf(n) % COLORS.length];
   box.append(make("h2", "result-heading", `Your night in ${data.city}`));
+  const schedule = make("p", "schedule-note", "The times below are suggestions only. We do not check dates, opening hours or availability, so check each venue before you go.");
+  schedule.setAttribute("role", "note");
+  box.append(schedule);
+  const missing = Array.isArray(data.missingStops) ? data.missingStops : [];
+  if (missing.length) {
+    const notice = make("p", "plan-incomplete", `This plan is incomplete. Qloo could not find ${missing.map((s) => (s.label || s).toLowerCase()).join(" or ")} for this group. The stops below are still useful.`);
+    notice.setAttribute("role", "status");
+    box.append(notice);
+  }
   // Explainability shows when one friend's favourites barely shape the plan. Say so, and say how to fix it.
   const quiet = names.filter((n) => data.stops.reduce((a, s) => a + (s.influence[n] || 0), 0) / data.stops.length < 0.6 / names.length);
   if (quiet.length) box.append(make("p", "fairness", `${quiet.join(" and ")} ${quiet.length > 1 ? "shape" : "shapes"} this plan least. Qloo links their favourites less to places here. Add another band or film for ${quiet.join(" and ")} to give them more say.`));
@@ -186,7 +196,7 @@ function render(data) {
 function renderStop(s, names, color) {
   const card = make("article", "stop-card");
   const e = s.winner.entity;
-  card.append(make("span", "stop-time", `${STOP_TIME[s.key] || ""} · ${s.label}`));
+  card.append(make("span", "stop-time", `Suggested ${STOP_TIME[s.key] || ""} · ${s.label}`));
   card.append(make("h3", "stop-name", e.name));
   if (e.address) card.append(make("p", "stop-meta", e.address));
   const next = s.alternatives[0];
@@ -242,4 +252,4 @@ function init() {
   $("night-btn").addEventListener("click", plan);
 }
 
-document.addEventListener("DOMContentLoaded", init);
+if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded", init);

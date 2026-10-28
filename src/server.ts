@@ -39,7 +39,10 @@ export function createServer(apiKey: string | undefined): McpServer {
     try {
       const plan = await planNight(qloo, members, city);
       const lines = plan.stops.map((s) => `${s.label}: ${s.winner.entity.name}${s.winner.entity.address ? ` (${s.winner.entity.address})` : ""}. Everyone scores it at least ${Math.round(s.winner.min * 100)}%. Because of ${s.because.map((b) => `${b.name} (${b.friends.join(", ")})`).join(", ") || "the group's shared taste"}.`);
-      return { content: [{ type: "text" as const, text: `${NIGHT_NOTE} Night out in ${city}.\n${lines.join("\n")}` }], structuredContent: { ...plan, mode, note: NIGHT_NOTE } };
+      const missing = plan.missingStops.length
+        ? `\nIncomplete plan. Qloo could not find ${plan.missingStops.map((s) => s.label.toLowerCase()).join(" or ")} for this group in ${city}. The other stops are still shown.`
+        : "";
+      return { content: [{ type: "text" as const, text: `${NIGHT_NOTE} Night out in ${city}.\n${lines.join("\n")}${missing}` }], structuredContent: { ...plan, mode, note: NIGHT_NOTE } };
     } catch (err) {
       const message = err instanceof QlooError ? err.message : "Something went wrong while asking Qloo. Please try again.";
       return { content: [{ type: "text" as const, text: message }], isError: true };

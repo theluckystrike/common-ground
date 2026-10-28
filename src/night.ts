@@ -31,7 +31,17 @@ export interface Stop {
   influence: Record<string, number>;
 }
 export interface NightTrace { searches: number; insights: number; ms: number }
-export interface NightPlan { city: string; stops: Stop[]; members: ResolvedMember[]; trace: NightTrace }
+export interface MissingStop { key: (typeof STOPS)[number]["key"]; label: string }
+export interface NightPlan {
+  city: string;
+  stops: Stop[];
+  /** True when Qloo found a venue for every requested stop. */
+  complete: boolean;
+  /** Requested stops with no venue. The other stops are still useful, so they stay in the plan. */
+  missingStops: MissingStop[];
+  members: ResolvedMember[];
+  trace: NightTrace;
+}
 
 type Candidate = { entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }>; venue?: { tags: string[]; hours: boolean } };
 
@@ -48,10 +58,13 @@ export function isVenueFor(stop: (typeof STOPS)[number], c: Candidate, strict = 
   return !categories.some((k) => NOT_A_VENUE.test(k) || (not?.test(k) ?? false)) && categories.some((k) => stop.fits.test(k));
 }
 
-/** Qloo addresses sometimes carry a postal-code label in Chinese. Drop non-Latin script labels. */
+/**
+ * Qloo sometimes adds the Chinese postal-code label to an address. Drop that label only.
+ * Street and place names in any script, including Chinese, are kept as Qloo returned them.
+ */
 export function cleanAddress(address: string | undefined): string | undefined {
   if (!address) return address;
-  return address.replace(/[\u3000-\u9fff\uac00-\ud7af]+[:：]?\s*/g, "").replace(/\s{2,}/g, " ").trim();
+  return address.replace(/\s*邮政编码\s*[:：]\s*/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
 /** Turn Qloo's per-input explainability for one pick into named favourites and a share per friend. */
@@ -156,6 +169,9 @@ export async function planNight(qloo: Qloo, members: Member[], city: string): Pr
     stops.push({ key: STOPS[i]!.key, label: STOPS[i]!.label, ...c, ...explainPick(explain, resolved) });
   });
   if (stops.length === 0) throw new QlooError(404, `Qloo found no restaurants, bars or music venues for this group in ${city}. Try a bigger city.`);
+  const missingStops: MissingStop[] = STOPS
+    .filter((s) => !stops.some((x) => x.key === s.key))
+    .map((s) => ({ key: s.key, label: s.label }));
   const trace: NightTrace = { searches: qloo.calls.search - before.search, insights: qloo.calls.insights - before.insights, ms: Date.now() - started };
-  return { city, stops, members: resolved, trace };
+  return { city, stops, complete: missingStops.length === 0, missingStops, members: resolved, trace };
 }
