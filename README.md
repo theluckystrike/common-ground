@@ -30,6 +30,12 @@ Below the night planner, "Or pick one thing together" picks one movie, show, boo
 
 ![Show Qloo's work panel with the live call count and the per-person score table](docs/screenshot-qloo-work.png)
 
+## Privacy
+
+The privacy notice is `web/privacy.html` in this source. Its public URL becomes available when this version is deployed.
+
+The browser sends the city, optional date, friend names and favourites to the app's Cloudflare Worker. In live mode the Worker sends favourite text unchanged to Qloo search, then matched entity IDs to Qloo Insights, with the city and selected weekday for place and night calls. A city is required when picking a restaurant. Member names are not a separate field in those Qloo request parameters; a name typed into a favourite field is sent as favourite text. The app has no accounts and does not automatically anonymize the text you enter. The app's own web code sets no cookies and loads no analytics script. The Worker has no database binding. The web night API at `/api/night` can hold a plan in a per-isolate memory cache for up to 30 minutes for reuse. That period is a reuse window, not a deletion time, and entries can remain until eviction or isolate shutdown. The single-pick web API and both MCP tools do not use that cache. Result images are loaded directly from Qloo-supplied URLs, so their host receives ordinary network metadata such as IP address and user agent, and may receive the referring page depending on browser policy. Qloo and Cloudflare process data under their own policies. Their actual retention is not controlled or fully known by this app. The verified public contact is the GitHub issue tracker. Do not put personal data in a public issue.
+
 ## Use it from an agent
 
 Both flows are MCP tools on one Streamable HTTP endpoint, `plan_night_out` and `find_common_ground`.
@@ -196,9 +202,10 @@ Restaurant results can still include bars and cafes that Qloo tags as restaurant
 A request can make up to 40 searches and 16 Insights calls.
 The public endpoint has no application rate limiter or persistent cache.
 Qloo limits can return HTTP 429.
-The app has no accounts and stores no submitted group profiles.
-Favourite names and entity IDs are sent to Qloo in live mode.
-Member names stay within the app request.
+The app has no accounts and does not write group profiles to a database.
+A web night plan can be held in Worker memory as described in the privacy notice.
+Favourite text and entity IDs are sent to Qloo in live mode.
+Member names are not a separate Qloo parameter; a name typed as a favourite is sent as favourite text.
 API availability after the hackathon depends on Qloo access.
 
 ## Checks

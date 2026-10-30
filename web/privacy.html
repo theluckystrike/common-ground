@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy notice. Common Ground</title>
+  <meta name="description" content="How Common Ground handles the city, optional date, friend names and favourites you enter, and what Qloo and Cloudflare receive.">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .privacy-notice code,
+    .privacy-notice a { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <p class="eyebrow">Common Ground</p>
+      <h1 class="site-title">Privacy notice</h1>
+      <p class="tagline">How this app handles what you enter, and what its hosting and taste-data providers receive.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <article class="step privacy-notice">
+      <p class="step-caption">This notice explains what Common Ground does with the information you enter. It is current as of 30 October 2026.</p>
+
+      <h2 class="step-heading">What you enter</h2>
+      <p>The night planner asks for a city, an optional night date, 2 to 6 friend names, and 1 to 4 favourites for each friend. The single-pick flow asks for a category, a city when you pick a restaurant, 2 to 8 names, and 2 to 5 favourites for each person. Favourites are free text, such as music artists, films, TV shows or books.</p>
+      <p>The app does not ask for an account, login, payment, booking, email address, phone number, postal address, government ID or other sensitive personal data. Do not enter sensitive information about yourself or anyone else.</p>
+
+      <h2 class="step-heading">What the app sends, and to whom</h2>
+      <p>When you submit the form, your browser sends the entered values as JSON to the app's Cloudflare Worker at <code>/api/night</code> or <code>/api/pick</code>. Member names, favourites, city and the optional date reach that Worker.</p>
+      <p>In live mode the Worker uses Qloo to turn favourites into recommendations:</p>
+      <ul>
+        <li>Each favourite is sent to Qloo's search endpoint as the text you typed. The app does not anonymize that text before sending it.</li>
+        <li>Matched entity IDs are sent to Qloo's Insights endpoint, together with the city for restaurant or other place picks and for every night stop. If you chose a date, the derived weekday is sent as Qloo's opening-day filter for those place calls.</li>
+        <li>Candidate entity IDs are sent when Qloo scores a shared pool of candidates.</li>
+      </ul>
+      <p>The Qloo request parameters in the source do not include member names as a separate field. If you type a person's name into a favourite field, it is treated as a favourite and sent as text. The Worker keeps names for matching results back to the right friend and for showing the result in your browser. Qloo returns entity details and affinity scores to the Worker, and the Worker returns the result to your browser.</p>
+      <p>Successful web responses from <code>/api/night</code> and <code>/api/pick</code> carry <code>cache-control: no-store</code>. That statement covers those web responses, not the MCP endpoint.</p>
+      <p>If you use the MCP endpoint from Claude or another agent, that client sends the tool input and receives the result. The client's own privacy terms apply to its conversation, logs and retention.</p>
+
+      <h2 class="step-heading">Images loaded by your browser</h2>
+      <p>A result can include an image URL supplied by Qloo. The page then loads that image directly from the URL's host. That host receives ordinary network metadata for the request, such as your IP address and user agent. It may also receive the referring page, depending on your browser's referrer policy. The app does not proxy those images.</p>
+
+      <h2 class="step-heading">Storage in the app</h2>
+      <ul>
+        <li>The app's own web code sets no cookies and uses no <code>localStorage</code>, <code>sessionStorage</code>, IndexedDB, analytics script or advertising script. Cloudflare and other network infrastructure can still process ordinary request metadata under their own policies.</li>
+        <li>The Worker configuration has no database, KV, R2, D1 or Durable Object binding. The app has no user accounts and does not write group profiles to a database.</li>
+        <li>The web night API at <code>/api/night</code> keeps a small cache in the memory of a Cloudflare Worker isolate. The key includes the city, member names, lowercased favourites and the optional date. The value includes the result. A matching request within 30 minutes can reuse the cached answer.</li>
+        <li>The cache holds at most 50 entries and removes the oldest entry when it is full. Expired entries are not removed by a timer. An entry can remain until eviction, until Cloudflare recycles the isolate, or until the isolate otherwise ends. The 30-minute period is a reuse window, not a deletion time.</li>
+        <li>The single-pick web API and both MCP tools have no such cache. The MCP <code>plan_night_out</code> tool calls the planning code directly.</li>
+        <li>The Worker code has no application logging statements. The Wrangler configuration in this source sets <code>observability.enabled</code> to <code>false</code>. That is a checked configuration, not a separate audit of the current deployment. It does not stop Cloudflare from processing ordinary network and request metadata as the hosting provider.</li>
+      </ul>
+
+      <h2 class="step-heading">Provider policies and retention</h2>
+      <p>Qloo's privacy policy, sections 5 to 7, says Qloo acts as a data processor for customer input, asks customers to pre-anonymize data sent through the API, and states that Qloo does not accept personally identifiable information through API calls. The same policy says Qloo may learn from associations between entities passed in an API request and use them to refine future output. These are Qloo's policies for its service. They do not make this app's input anonymous, and they do not establish what Qloo retains for a particular request.</p>
+      <p>This app does not automatically anonymize the text you type. Favourite text is sent to Qloo search unchanged. Do not enter personal or sensitive information as a name or a favourite.</p>
+      <p>Qloo's policy does not state a retention period for API requests. Actual Qloo-side retention for this app's requests is therefore not established by this notice.</p>
+      <p>Cloudflare's privacy policy says Cloudflare is a data processor for Customer Logs and for content that transits or is stored on its network, and that it processes network data including IP addresses and traffic routing information. Its retention section describes purposes and criteria rather than one fixed period for this app. Cloudflare's own policy governs that processing.</p>
+      <p>See the <a href="https://www.qloo.com/legal/privacy">Qloo privacy policy</a> and the <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare privacy policy</a> for their current terms.</p>
+
+      <h2 class="step-heading">What this app does not do</h2>
+      <p>The repository contains no advertising, analytics or data-sale integration. The app does not book venues, take payments, create accounts or ask for private contact details.</p>
+
+      <h2 class="step-heading">Contact</h2>
+      <p>Common Ground is maintained by Michael Lip. The project's verified public contact is the <a href="https://github.com/theluckystrike/common-ground/issues">GitHub issue tracker</a>.</p>
+      <p>For a privacy question, open a minimal public issue. Do not include names, contact details or other sensitive information in a public issue.</p>
+
+      <p class="step-caption">Current as of 30 October 2026. <a href="./">Back to Common Ground</a>.</p>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Common Ground by Michael Lip. <a href="./">Open the app</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>
