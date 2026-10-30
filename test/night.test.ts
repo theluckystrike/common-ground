@@ -60,7 +60,7 @@ test("night plan asks Qloo for explainability once per stop and scores each frie
     const forStop = insights.filter((p) => p.get("filter.tags") === stop.tag);
     assert.equal(forStop.length, 1 + recorded.members.length);
     assert.equal(forStop.filter((p) => p.get("feature.explainability") === "true").length, 1);
-    assert.ok(forStop.every((p) => p.get("filter.location.query") === "Lisbon" && p.get("filter.location.radius") === "0" && p.get("filter.type") === "urn:entity:place"));
+    assert.ok(forStop.every((p) => p.get("filter.location.query") === "Lisbon" && p.get("filter.location.radius") === "0" && p.get("filter.type") === "urn:entity:place" && p.get("filter.hours") === null));
     const pool = forStop.find((p) => p.has("filter.results.entities"))!.get("filter.results.entities")!.split(",");
     assert.ok(pool.length > 0 && pool.length <= 20);
   }
@@ -124,6 +124,30 @@ function stopFetch(tagsWithVenue: Set<string>): typeof fetch {
 }
 
 const twoFriends = [{ name: "Ana", likes: ["Radiohead"] }, { name: "Tom", likes: ["Dune"] }];
+
+function datedFetch(urls: URL[]): typeof fetch {
+  return async (input) => {
+    const u = new URL(String(input));
+    urls.push(u);
+    if (u.pathname === "/search") return new Response(JSON.stringify(artistSearch), { status: 200, headers: { "content-type": "application/json" } });
+    const tag = u.searchParams.get("filter.tags") ?? "";
+    const category = tag === STOPS[0].tag ? "italian_restaurant" : tag === STOPS[1].tag ? "cocktail_bar" : "live_music_venue";
+    const entity = {
+      entity_id: `venue-${category}`,
+      name: `Venue ${category}`,
+      tags: [{ id: `urn:tag:category:place:${category}` }],
+      properties: { hours: { mon: "18:00-23:00" } },
+      query: { affinity: 0.8, explainability: { "signal.interests.entities": [{ entity_id: "a", score: 0.5 }] } },
+    };
+    return new Response(JSON.stringify({ results: { entities: [entity] } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+}
+
+function postNight(body: unknown, env: { ASSETS: { fetch: () => Promise<Response> }; QLOO_API_KEY?: string }) {
+  return worker.fetch(new Request("https://example.test/api/night", {
+    method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" },
+  }), env);
+}
 
 test("a plan with one empty stop keeps the other stops and names the missing ones", async () => {
   const plan = await planNight(new Qloo("test-key", stopFetch(new Set(["urn:tag:genre:place:restaurant"]))), twoFriends, "Lisbon");
@@ -197,7 +221,7 @@ test("/api/night validates input, needs a key, and reuses a recent plan without 
   } finally { globalThis.fetch = original; }
 });
 
-test("MCP lists plan_night_out next to find_common_ground", async () => {
+test("MCP lists plan_night_out next to find_common_ground and passes its date through", async () => {
   const env = { ASSETS: { fetch: async () => new Response("asset") } };
   const res = await worker.fetch(new Request("https://example.test/mcp", {
     method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
@@ -206,6 +230,31 @@ test("MCP lists plan_night_out next to find_common_ground", async () => {
   const text = await res.text();
   assert.match(text, /plan_night_out/);
   assert.match(text, /find_common_ground/);
+  assert.match(text, /YYYY-MM-DD/);
+
+  const original = globalThis.fetch;
+  globalThis.fetch = datedFetch([]);
+  try {
+    const call = await worker.fetch(new Request("https://example.test/mcp", {
+      method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "plan_night_out", arguments: { city: "Porto", date: "2026-10-30", members: twoFriends } } }),
+    }), { ...env, QLOO_API_KEY: "test-key" } as typeof env);
+    const body = await call.text();
+    assert.match(body, /Selected date: 2026-10-30 \(friday\)/);
+    assert.match(body, /day of week only/);
+    assert.match(body, /Lowest raw Qloo taste affinity 80 out of 100/);
+    assert.doesNotMatch(body, /Everyone scores it at least/);
+
+    const undated = await worker.fetch(new Request("https://example.test/mcp", {
+      method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "plan_night_out", arguments: { city: "Porto", members: twoFriends } } }),
+    }), { ...env, QLOO_API_KEY: "test-key" } as typeof env);
+    const undatedBody = await undated.text();
+    assert.match(undatedBody, /Lowest raw Qloo taste affinity 80 out of 100/);
+    assert.equal((undatedBody.match(/No date selected/g) ?? []).length, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("a slow Qloo answer is retried once before the user sees an error", async () => {
@@ -251,4 +300,84 @@ test("/api/night keeps a provider outage as a live error with no invented stops"
     assert.equal(typeof body.error, "string");
     assert.equal("stops" in body, false);
   } finally { globalThis.fetch = original; }
+});
+
+test("a selected date adds Qloo's documented filter.hours to every group and per-friend place call", async () => {
+  const urls: URL[] = [];
+  const plan = await planNight(new Qloo("test-key", datedFetch(urls)), twoFriends, "Porto", "2026-10-30");
+  assert.equal(plan.dateScope.requestedDate, "2026-10-30");
+  assert.equal(plan.dateScope.weekday, "friday");
+  assert.deepEqual(plan.dateScope.qlooFilter, { parameter: "filter.hours", value: "friday" });
+  assert.equal(plan.dateScope.openingDayFiltered, true);
+  const insights = urls.filter((u) => u.pathname === "/v2/insights");
+  assert.equal(insights.length, STOPS.length * (1 + twoFriends.length));
+  assert.ok(insights.every((u) => u.searchParams.get("filter.type") === "urn:entity:place"));
+  assert.ok(insights.every((u) => u.searchParams.get("filter.location.query") === "Porto"));
+  assert.ok(insights.every((u) => u.searchParams.get("filter.hours") === "friday"));
+});
+
+test("a missing date keeps the old request shape and does not pretend to have a weekday", async () => {
+  const urls: URL[] = [];
+  const plan = await planNight(new Qloo("test-key", datedFetch(urls)), twoFriends, "Porto");
+  assert.equal(plan.dateScope.requestedDate, null);
+  assert.equal(plan.dateScope.weekday, null);
+  assert.equal(plan.dateScope.qlooFilter, null);
+  assert.equal(plan.dateScope.openingDayFiltered, false);
+  const insights = urls.filter((u) => u.pathname === "/v2/insights");
+  assert.ok(insights.length > 0);
+  assert.ok(insights.every((u) => u.searchParams.get("filter.hours") === null));
+});
+
+test("planNight rejects an impossible date before asking Qloo", async () => {
+  const urls: URL[] = [];
+  await assert.rejects(
+    planNight(new Qloo("test-key", datedFetch(urls)), twoFriends, "Porto", "2023-02-29"),
+    (err: unknown) => err instanceof Error && "status" in err && (err as { status: number }).status === 400,
+  );
+  assert.equal(urls.length, 0);
+});
+
+test("/api/night keeps a dated plan separate in the cache and returns the visible date scope", async () => {
+  const original = globalThis.fetch;
+  const urls: URL[] = [];
+  globalThis.fetch = datedFetch(urls);
+  try {
+    const live = { ASSETS: { fetch: async () => new Response("asset") }, QLOO_API_KEY: "test-key" };
+    const first = await postNight({ city: "Porto", date: "2026-10-30", members: twoFriends }, live);
+    assert.equal(first.status, 200);
+    const dated = await first.json() as { cached: boolean; dateScope: { requestedDate: string; weekday: string; openingDayFiltered: boolean } };
+    assert.equal(dated.cached, false);
+    assert.equal(dated.dateScope.requestedDate, "2026-10-30");
+    assert.equal(dated.dateScope.weekday, "friday");
+    assert.equal(dated.dateScope.openingDayFiltered, true);
+    const callCount = urls.length;
+
+    const same = await postNight({ city: "porto", date: "2026-10-30", members: twoFriends }, live);
+    assert.equal((await same.json() as { cached: boolean }).cached, true);
+    assert.equal(urls.length, callCount);
+
+    const blank = await postNight({ city: "Porto", members: twoFriends }, live);
+    const noDate = await blank.json() as { cached: boolean; dateScope: { requestedDate: string | null; openingDayFiltered: boolean } };
+    assert.equal(noDate.cached, false);
+    assert.equal(noDate.dateScope.requestedDate, null);
+    assert.equal(noDate.dateScope.openingDayFiltered, false);
+    assert.ok(urls.length > callCount);
+
+    const beforeOther = urls.length;
+    const other = await postNight({ city: "Porto", date: "2026-10-31", members: twoFriends }, live);
+    assert.equal((await other.json() as { cached: boolean }).cached, false);
+    const otherInsights = urls.slice(beforeOther).filter((u) => u.pathname === "/v2/insights");
+    assert.ok(otherInsights.length > 0);
+    assert.ok(otherInsights.every((u) => u.searchParams.get("filter.hours") === "saturday"));
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("/api/night rejects impossible dates before touching Qloo", async () => {
+  const env = { ASSETS: { fetch: async () => new Response("asset") } };
+  for (const date of ["2023-02-29", "2026-04-31", "2026-13-01", "30-10-2026"]) {
+    assert.equal((await postNight({ city: "Lisbon", date, members: twoFriends }, env)).status, 400, date);
+  }
+  assert.equal((await postNight({ city: "Lisbon", date: "2024-02-29", members: twoFriends }, env)).status, 503);
 });

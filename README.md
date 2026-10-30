@@ -5,7 +5,9 @@ For friends who argue about where to go. Everyone names a few bands, films, show
 Qloo's cross-domain taste graph turns that shared taste into dinner, drinks and live music in your city.
 Each stop names the favourites that picked it and shows how much each friend's taste counts.
 
-[**Open the live app**](https://common-ground.lipmichal.workers.dev) · [Demo video (85 s)](https://youtu.be/npgyKhITMVI) · [MCP endpoint](https://common-ground.lipmichal.workers.dev/mcp) · [Live mode check](https://common-ground.lipmichal.workers.dev/health)
+[**Open the live app**](https://common-ground.lipmichal.workers.dev) · [MCP endpoint](https://common-ground.lipmichal.workers.dev/mcp) · [Live mode check](https://common-ground.lipmichal.workers.dev/health)
+
+The [earlier 85-second video](https://youtu.be/npgyKhITMVI) and screenshots below show the interface before the optional date field. The video also uses older score and time labels. Use the app and the current limits below to assess present behavior.
 
 ![Four friends list music, films, TV and books. Qloo plans dinner, drinks and live music in Lisbon, and each stop names the favourites behind it](docs/screenshot-night-plan.png)
 
@@ -18,8 +20,8 @@ Each stop names the favourites that picked it and shows how much each friend's t
 
 ## Try it in 30 seconds
 
-1. Open the [live app](https://common-ground.lipmichal.workers.dev). "Friday in Lisbon" is ready with four friends.
-2. Press **Plan our night**. It takes about 4 to 9 seconds.
+1. Open the [live app](https://common-ground.lipmichal.workers.dev). "Night in Lisbon" is ready with four friends.
+2. Optionally choose a date, then press **Plan our night**. A selected date filters venues by its weekday. Exact opening hours and availability are not checked. A request usually takes about 4 to 9 seconds.
 3. Read the three stops. "Picked by" names the favourites behind each venue. "Whose taste counts" shows each friend's share.
 4. Open **Show Qloo's work** for the live call count and the matched Qloo entities.
 5. Try "Birthday in New York" or "Team night in London", or type your own friends.
@@ -37,7 +39,7 @@ claude mcp add --transport http common-ground https://common-ground.lipmichal.wo
 ```
 
 Then ask your agent, for example "Plan a night out in Lisbon. Ana loves Radiohead and Dune, Tom loves Kendrick Lamar and The Bear, Priya loves Phoebe Bridgers and Normal People."
-`plan_night_out` takes a `city` and 2 to 6 `members` with 1 to 4 `likes` each. It returns three stops, the favourites behind each, each friend's share and a call trace.
+`plan_night_out` takes a `city`, 2 to 6 `members` with 1 to 4 `likes` each, and an optional `date` in `YYYY-MM-DD` form. It returns the available stops, the favourites behind each, each friend's share, a call trace and `dateScope`. A plan can be incomplete if Qloo cannot find all three stops.
 `find_common_ground` input is `kind`, an optional `tasteFrom` (a category, or `any` for mixed favourites), an optional `location` and 2 to 8 `members` with 2 to 5 `likes` each.
 The tool returns the pick, three alternatives, a reason per person and a trace of the Qloo calls.
 
@@ -71,11 +73,11 @@ QLOO_API_KEY=YOUR_API_KEY
 
 1. `GET /search` resolves each favourite across artists, movies, TV shows and books. Each favourite keeps the type Qloo returns.
 2. For each stop (dinner, drinks, live music), one `GET /v2/insights` call sends everyone's favourites as `signal.interests.entities`, `filter.type=urn:entity:place`, `filter.location.query` with the city, a stop tag and `feature.explainability=true`. Stop tags are `urn:tag:genre:place:restaurant`, `urn:tag:category:place:bar` and `urn:tag:genre:place:live_music_venue`.
-3. The group call asks for 30 venues inside the city (`filter.location.radius=0`). The app keeps up to 20 real venues. A venue needs opening hours in Qloo and a category that fits the stop, such as a restaurant for dinner. Shops, malls, markets and event rentals are dropped, and so are streets and districts. Dinner prefers restaurants that are not also bars or cafes, and live music prefers music venues that are not also restaurants. Each falls back to mixed venues only when a city has fewer than 3 pure ones. One more Insights call per friend scores that pool with `filter.results.entities`.
+3. The group call asks for 30 venues inside the city (`filter.location.radius=0`). The app keeps up to 20 real venues. A venue needs opening hours in Qloo and a category that fits the stop, such as a restaurant for dinner. Shops, malls, markets and event rentals are dropped, and so are streets and districts. Dinner prefers restaurants that are not also bars or cafes, and live music prefers music venues that are not also restaurants. Each falls back to mixed venues only when a city has fewer than 3 pure ones. One more Insights call per friend scores that pool with `filter.results.entities`. With a selected date, every group and per-person venue call also sends Qloo's documented `filter.hours` weekday value.
 4. Each stop is the venue with the highest lowest raw affinity. The group average breaks ties. A venue is used only once in the night.
 5. The winner's `query.explainability` scores name the favourites behind it. When Qloo weighs the favourites about equally, the app says the venue is a balanced compromise instead of showing near-equal percentages. Each friend's share is the sum of their favourites' scores. A shared favourite is split evenly.
 
-A four-friend plan makes 8 searches and 15 Insights calls. The same plan within 30 minutes is answered from memory, so replays by judges do not spend the quota.
+A four-friend plan makes 8 searches and 15 Insights calls. The same plan within 30 minutes is answered from memory, so replays by judges do not spend the quota. The cache separates each selected calendar date from other dates and from an undated request.
 
 ## How Qloo drives the single pick
 
@@ -169,6 +171,8 @@ It is read only and does not book venues or buy media.
 ## Limits
 
 Night plans have two to six friends with one to four favourites each, and need a large enough city.
+The optional date must be a real calendar date between 1900 and 9999. Its weekday is derived in UTC so the server's timezone cannot change the selected day. Incomplete native date input is rejected before a browser request is sent.
+Qloo's weekday filter does not verify exact opening hours, holiday schedules, live availability, travel feasibility or event tickets. Suggested stop times are not reservations or a checked itinerary. With no date, there is no opening-day filter.
 Explainability scores are often close together, so "Picked by" shows influence, not a single cause.
 The venue check uses Qloo category tags and listed hours. It removes streets, districts, shops and markets, but in a small city a mixed venue, such as a restaurant that is also a bar, can still win.
 
@@ -202,7 +206,7 @@ API availability after the hackathon depends on Qloo access.
 `npm test` uses fixture responses and fake fetch functions.
 It never calls Qloo.
 Night plan tests replay recorded Qloo responses.
-Tests cover the night plan, explainability shares, one venue per stop, fairness, pool scoring, input errors, auth errors, rate limits, timeout handling, fixture replay and MCP calls.
+Tests cover the night plan, explainability shares, one venue per stop, fairness, pool scoring, input errors, auth errors, rate limits, timeout handling, fixture replay and MCP calls. Date checks cover real calendar validation, weekday request parameters, date-separated caching and the real Plan handler's refusal to send incomplete native input. These tests use fixtures; they do not prove a fresh live-provider result.
 
 ```sh
 gitleaks detect --source . --redact --no-banner

@@ -2,9 +2,9 @@
 
 // Plan a night out. Friends list mixed favourites, Qloo picks dinner, drinks and live music in one city.
 
-const NIGHT_EXAMPLES = [
+export const NIGHT_EXAMPLES = [
   {
-    label: "Friday in Lisbon",
+    label: "Night in Lisbon",
     city: "Lisbon",
     friends: [
       { name: "Ana", likes: "Radiohead, Dune" },
@@ -37,11 +37,14 @@ const NIGHT_EXAMPLES = [
 const MAX_FRIENDS = 6;
 const MAX_LIKES = 4;
 const COLORS = ["#c4633a", "#3f7d6e", "#6a5acd", "#a8742a", "#b23a6a", "#3a6fb2"];
-// Suggested times only. We do not check dates, opening hours or availability.
+// Suggested times only. A selected date filters Qloo by weekday; exact hours and availability are not checked.
 const STOP_TIME = { dinner: "8 pm", drinks: "10 pm", music: "11 pm" };
 const KIND = { artist: "music", movie: "film", tv_show: "TV", book: "book" };
+const DATE_YEAR_MIN = 1900;
+const DATE_YEAR_MAX = 9999;
+const TIME_WARNING = "The times below are suggestions only. Exact opening hours, holiday schedules, live availability, travel and event tickets are not checked, so check each venue before you go.";
 
-const night = { city: "", friends: [] };
+const night = { city: "", friends: [], date: "" };
 
 function $(id) { return document.getElementById(id); }
 
@@ -65,10 +68,12 @@ function renderExamples() {
   }
 }
 
-function applyExample(ex) {
+export function applyExample(ex) {
   night.city = ex.city;
   night.friends = ex.friends.map((f) => ({ ...f }));
+  night.date = "";
   $("night-city").value = ex.city;
+  $("night-date").value = "";
   renderFriends();
   hide();
 }
@@ -111,13 +116,28 @@ function showError(message) {
   box.hidden = false;
 }
 
+/** The date input itself is the source of truth, not the last input event. */
+function dateInputProblem(input) {
+  const raw = String(input.value ?? "").trim();
+  if (input.validity && input.validity.badInput) {
+    return "That date is incomplete or not a real date. Choose a full date, or clear the field to leave it blank.";
+  }
+  if (!raw) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "Add the night date in YYYY-MM-DD form, or leave it blank.";
+  const year = Number(raw.slice(0, 4));
+  if (year < DATE_YEAR_MIN || year > DATE_YEAR_MAX) return `Use a year between ${DATE_YEAR_MIN} and ${DATE_YEAR_MAX}.`;
+  return "";
+}
+
 function payload() {
   const members = night.friends.map((f) => ({
     name: f.name.trim(),
     likes: f.likes.split(",").map((s) => s.trim()).filter(Boolean),
   }));
   const errors = [];
+  const date = String($("night-date").value ?? "").trim();
   if (!night.city.trim()) errors.push("Add a city.");
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push("Add the night date in YYYY-MM-DD form, or leave it blank.");
   if (members.length < 2) errors.push("Add at least 2 friends.");
   if (new Set(members.map((m) => m.name.toLowerCase())).size !== members.length) errors.push("Give each friend a different name.");
   members.forEach((m, i) => {
@@ -126,10 +146,21 @@ function payload() {
     if (m.likes.length < 1) errors.push(`${label} needs at least 1 favourite.`);
     if (m.likes.length > MAX_LIKES) errors.push(`${label} can list at most ${MAX_LIKES} favourites.`);
   });
-  return { errors, body: { city: night.city.trim(), members } };
+  const body = { city: night.city.trim(), members };
+  if (date) body.date = date;
+  return { errors, body };
 }
 
-async function plan() {
+export async function plan() {
+  const dateInput = $("night-date");
+  const badDate = dateInputProblem(dateInput);
+  if (badDate) {
+    showError(badDate);
+    dateInput.setAttribute("aria-invalid", "true");
+    if (typeof dateInput.focus === "function") dateInput.focus();
+    return;
+  }
+  if (typeof dateInput.removeAttribute === "function") dateInput.removeAttribute("aria-invalid");
   const { errors, body } = payload();
   if (errors.length) { showError(errors.join(" ")); return; }
   hide();
@@ -155,7 +186,14 @@ export function render(data) {
   const names = data.members.map((m) => m.name);
   const color = (n) => COLORS[names.indexOf(n) % COLORS.length];
   box.append(make("h2", "result-heading", `Your night in ${data.city}`));
-  const schedule = make("p", "schedule-note", "The times below are suggestions only. We do not check dates, opening hours or availability, so check each venue before you go.");
+  const scope = data.dateScope;
+  const filtered = Boolean(scope && scope.requestedDate);
+  if (filtered) {
+    box.append(make("p", "date-scope", `Selected date ${scope.requestedDate} (${scope.weekday}). Qloo kept places open on ${scope.weekday}, by day of the week only.`));
+  } else {
+    box.append(make("p", "date-scope", "No date selected, so Qloo did not filter by opening day."));
+  }
+  const schedule = make("p", "schedule-note", TIME_WARNING);
   schedule.setAttribute("role", "note");
   box.append(schedule);
   const missing = Array.isArray(data.missingStops) ? data.missingStops : [];
@@ -244,6 +282,7 @@ function init() {
   renderExamples();
   applyExample(NIGHT_EXAMPLES[0]);
   $("night-city").addEventListener("input", (ev) => { night.city = ev.target.value; hide(); });
+  $("night-date").addEventListener("input", (ev) => { night.date = ev.target.value; hide(); });
   $("night-add").addEventListener("click", () => {
     if (night.friends.length >= MAX_FRIENDS) return;
     night.friends.push({ name: "", likes: "" });

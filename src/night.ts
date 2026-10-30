@@ -1,3 +1,4 @@
+import { nightDateScope, parseNightDate, type NightDateScope } from "./date.js";
 import { resolveMembers } from "./group.js";
 import { Qloo } from "./qloo.js";
 import { QlooError, type Entity, type Member, type ResolvedMember, type Scored } from "./types.js";
@@ -31,6 +32,8 @@ export interface Stop {
   influence: Record<string, number>;
 }
 export interface NightTrace { searches: number; insights: number; ms: number }
+export type { NightDateScope };
+
 export interface MissingStop { key: (typeof STOPS)[number]["key"]; label: string }
 export interface NightPlan {
   city: string;
@@ -41,6 +44,8 @@ export interface NightPlan {
   missingStops: MissingStop[];
   members: ResolvedMember[];
   trace: NightTrace;
+  /** Explicit date and Qloo filter scope, so callers can say what was and was not checked. */
+  dateScope: NightDateScope;
 }
 
 type Candidate = { entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }>; venue?: { tags: string[]; hours: boolean } };
@@ -135,8 +140,10 @@ export function chooseStops(ranked: Scored[][]): Array<{ winner: Scored; alterna
  * candidate pool, then one call per friend scores that pool. The stop goes to the venue whose least
  * happy friend is happiest, and Qloo's explainability names the favourites behind it.
  */
-export async function planNight(qloo: Qloo, members: Member[], city: string): Promise<NightPlan> {
+export async function planNight(qloo: Qloo, members: Member[], city: string, date?: string): Promise<NightPlan> {
   if (members.length < 2 || members.length > NIGHT_MAX_FRIENDS) throw new QlooError(400, `Add between 2 and ${NIGHT_MAX_FRIENDS} friends.`);
+  const selectedDate = date === undefined ? null : parseNightDate(date);
+  const hours = selectedDate?.weekday;
   const started = Date.now();
   const before = { ...qloo.calls };
   const capped = members.map((m) => ({ ...m, likes: m.likes.slice(0, NIGHT_MAX_LIKES) }));
@@ -146,14 +153,14 @@ export async function planNight(qloo: Qloo, members: Member[], city: string): Pr
   const everyone = [...new Map(resolved.flatMap((m) => m.liked).map((e) => [e.id, e])).values()];
 
   const perStop = await Promise.all(STOPS.map(async (stop) => {
-    const all: Candidate[] = await qloo.insights(everyone, "place", { take: GROUP_TAKE, location: city, tag: stop.tag, explain: true, strictCity: true });
+    const all: Candidate[] = await qloo.insights(everyone, "place", { take: GROUP_TAKE, location: city, tag: stop.tag, explain: true, strictCity: true, hours });
     // Prefer pure venues. If a city has fewer than 3, allow mixed ones, such as a fado house for music.
     const strict = all.filter((c) => isVenueFor(stop, c));
     const group = (strict.length >= 3 ? strict : all.filter((c) => isVenueFor(stop, c, false))).slice(0, POOL_SIZE);
     for (const c of group) c.entity.address = cleanAddress(c.entity.address);
     const pool = group.map((c) => c.entity.id);
     if (pool.length === 0) return { ranked: [] as Scored[], group };
-    const lists = await Promise.all(resolved.map((m) => qloo.insights(m.liked, "place", { take: pool.length, location: city, candidates: pool, tag: stop.tag, strictCity: true })));
+    const lists = await Promise.all(resolved.map((m) => qloo.insights(m.liked, "place", { take: pool.length, location: city, candidates: pool, tag: stop.tag, strictCity: true, hours })));
     // Rank with the group call's entity, so the cleaned address is the one shown.
     const byId = new Map(group.map((c) => [c.entity.id, c.entity]));
     const ranked = rankRaw(Object.fromEntries(resolved.map((m, i) => [m.name, lists[i] ?? []])), pool);
@@ -173,5 +180,5 @@ export async function planNight(qloo: Qloo, members: Member[], city: string): Pr
     .filter((s) => !stops.some((x) => x.key === s.key))
     .map((s) => ({ key: s.key, label: s.label }));
   const trace: NightTrace = { searches: qloo.calls.search - before.search, insights: qloo.calls.insights - before.insights, ms: Date.now() - started };
-  return { city, stops, complete: missingStops.length === 0, missingStops, members: resolved, trace };
+  return { city, stops, complete: missingStops.length === 0, missingStops, members: resolved, trace, dateScope: nightDateScope(selectedDate) };
 }

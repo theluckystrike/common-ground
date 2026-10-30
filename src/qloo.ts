@@ -211,7 +211,7 @@ export class Qloo {
    * `tag` overrides the place genre (restaurant by default). `explain` asks Qloo which input
    * entities drove each result (`feature.explainability`), so a pick can name the favourites behind it.
    */
-  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string; candidates?: string[]; tag?: string; explain?: boolean; strictCity?: boolean }): Promise<Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }>; venue?: { tags: string[]; hours: boolean } }>> {
+  async insights(liked: Entity[], kind: Kind, opts: { take: number; location?: string; candidates?: string[]; tag?: string; explain?: boolean; strictCity?: boolean; hours?: string }): Promise<Array<{ entity: Entity; affinity: number; explain?: Array<{ id: string; score: number }>; venue?: { tags: string[]; hours: boolean } }>> {
     const url = new URL("/v2/insights", this.base);
     url.searchParams.set("filter.type", KIND_TYPE[kind]);
     const ids = liked.map((e) => e.id).filter(Boolean);
@@ -223,6 +223,8 @@ export class Qloo {
       if (opts.location) url.searchParams.set("filter.location.query", opts.location);
       // Radius 0 keeps venues inside the city, not in towns 25 km away.
       if (opts.location && opts.strictCity) url.searchParams.set("filter.location.radius", "0");
+      // Qloo documents filter.hours as an opening day of the week, not an exact opening time.
+      if (opts.hours) url.searchParams.set("filter.hours", opts.hours);
     }
     if (opts.explain) url.searchParams.set("feature.explainability", "true");
     this.calls.insights++;

@@ -27,6 +27,11 @@
         <label class="field-label" for="night-city">City</label>
         <input class="text-input" id="night-city" type="text" placeholder="e.g. Lisbon" autocomplete="off" maxlength="80">
       </div>
+      <div class="location-field">
+        <label class="field-label" for="night-date">Night date (optional)</label>
+        <input class="text-input" id="night-date" type="date" min="1900-01-01" max="9999-12-31" autocomplete="off">
+        <p class="step-caption">Add a date and Qloo keeps places open that weekday. Exact hours, travel and availability are still not checked.</p>
+      </div>
       <div class="night-friends" id="night-friends"></div>
       <button type="button" class="btn btn-ghost" id="night-add">Add a friend</button>
       <button type="button" class="btn btn-primary" id="night-btn">Plan our night</button>

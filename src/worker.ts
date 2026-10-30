@@ -37,8 +37,11 @@ async function apiPick(request: Request, env: Env): Promise<Response> {
 const NIGHT_TTL_MS = 30 * 60_000;
 const nightCache = new Map<string, { at: number; body: unknown }>();
 
-export function nightKey(city: string, members: Array<{ name: string; likes: string[] }>): string {
-  return JSON.stringify([city.toLowerCase(), members.map((m) => [m.name, m.likes.map((l) => l.toLowerCase())])]);
+export function nightKey(city: string, members: Array<{ name: string; likes: string[] }>, date?: string): string {
+  const identity: unknown[] = [city.toLowerCase(), members.map((m) => [m.name, m.likes.map((l) => l.toLowerCase())])];
+  // No date keeps the original identity; a date is a different night, so it gets its own cache entry.
+  if (date) identity.push(date);
+  return JSON.stringify(identity);
 }
 
 async function apiNight(request: Request, env: Env): Promise<Response> {
@@ -47,15 +50,15 @@ async function apiNight(request: Request, env: Env): Promise<Response> {
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return Response.json({ error: "Send JSON." }, { status: 400 }); }
   const parsed = nightInput.safeParse(body);
-  if (!parsed.success) return Response.json({ error: "Add a city, 2 to 6 friends with different names, and 1 to 4 favourites each." }, { status: 400 });
-  const { city, members } = parsed.data;
+  if (!parsed.success) return Response.json({ error: "Add a city, 2 to 6 friends with different names, and 1 to 4 favourites each. A date is optional and must be a real YYYY-MM-DD date." }, { status: 400 });
+  const { city, members, date } = parsed.data;
   const { qloo, mode, note } = dataSource(env.QLOO_API_KEY);
   if (mode === "demo") return Response.json({ error: "Night plans need live Qloo data, and this server has no Qloo key.", mode, note }, { status: 503 });
-  const key = nightKey(city, members);
+  const key = nightKey(city, members, date);
   const hit = nightCache.get(key);
   if (hit && Date.now() - hit.at < NIGHT_TTL_MS) return Response.json({ ...hit.body as object, cached: true }, { headers: { "cache-control": "no-store" } });
   try {
-    const result = { ...await planNight(qloo, members, city), mode, note: NIGHT_NOTE };
+    const result = { ...await planNight(qloo, members, city, date), mode, note: NIGHT_NOTE };
     if (nightCache.size >= 50) nightCache.delete(nightCache.keys().next().value!);
     nightCache.set(key, { at: Date.now(), body: result });
     return Response.json({ ...result, cached: false }, { headers: { "cache-control": "no-store" } });
