@@ -1,5 +1,7 @@
 import * as z from "zod/v4";
 
+import { parseNightDate } from "./date.js";
+
 export const KINDS = ["movie", "tv_show", "book", "artist", "podcast", "place", "destination", "video_game"] as const;
 
 export const groupInput = z.object({
@@ -25,6 +27,8 @@ export const groupInput = z.object({
 
 export const nightInput = z.object({
   city: z.string().trim().min(1).max(80).describe("City for the night out, for example Lisbon or New York."),
+  date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date in YYYY-MM-DD form.")
+    .optional().describe("Optional exact night date as YYYY-MM-DD. Qloo filters places by that date's weekday only."),
   members: z.array(z.object({
     name: z.string().trim().min(1).max(40),
     likes: z.array(z.string().trim().min(1).max(80)).min(1).max(4)
@@ -34,5 +38,12 @@ export const nightInput = z.object({
   const names = group.members.map((m) => m.name.toLowerCase());
   if (new Set(names).size !== names.length) {
     ctx.addIssue({ code: "custom", message: "Give each friend a different name." });
+  }
+  if (group.date !== undefined) {
+    try {
+      parseNightDate(group.date);
+    } catch (err) {
+      ctx.addIssue({ code: "custom", path: ["date"], message: err instanceof Error ? err.message : "Use a real calendar date." });
+    }
   }
 });

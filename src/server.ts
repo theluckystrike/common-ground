@@ -30,19 +30,23 @@ export function createServer(apiKey: string | undefined): McpServer {
   });
   server.registerTool("plan_night_out", {
     title: "Plan a night out for a group of friends",
-    description: "Plan dinner, drinks and a live music venue in one city for 2 to 6 friends. Give the city and each friend's name with 1 to 4 music artists, movies, TV shows or books they love. Qloo's cross-domain taste graph turns that shared taste into real venues. Each stop is the venue whose least happy friend is happiest, and Qloo explainability names the favourites behind it, with the share of each friend's taste.",
+    description: "Plan dinner, drinks and a live music venue in one city for 2 to 6 friends. Give the city and each friend's name with 1 to 4 music artists, movies, TV shows or books they love. Optionally give an exact night date as YYYY-MM-DD; Qloo then filters venues by that date's weekday only, not by exact opening times, travel or availability. Qloo's cross-domain taste graph turns that shared taste into real venues. Each stop is the venue whose least happy friend is happiest, and Qloo explainability names the favourites behind it, with the share of each friend's taste.",
     inputSchema: nightInput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-  }, async ({ city, members }) => {
+  }, async ({ city, members, date }) => {
     const { qloo, mode, note } = dataSource(apiKey);
     if (mode === "demo") return { content: [{ type: "text" as const, text: "Night plans need live Qloo data, and this server has no Qloo key." }], isError: true };
     try {
-      const plan = await planNight(qloo, members, city);
-      const lines = plan.stops.map((s) => `${s.label}: ${s.winner.entity.name}${s.winner.entity.address ? ` (${s.winner.entity.address})` : ""}. Everyone scores it at least ${Math.round(s.winner.min * 100)}%. Because of ${s.because.map((b) => `${b.name} (${b.friends.join(", ")})`).join(", ") || "the group's shared taste"}.`);
+      const plan = await planNight(qloo, members, city, date);
+      const lines = plan.stops.map((s) => `${s.label}: ${s.winner.entity.name}${s.winner.entity.address ? ` (${s.winner.entity.address})` : ""}. Lowest raw Qloo taste affinity ${Math.round(s.winner.min * 100)} out of 100. Because of ${s.because.map((b) => `${b.name} (${b.friends.join(", ")})`).join(", ") || "the group's shared taste"}.`);
       const missing = plan.missingStops.length
         ? `\nIncomplete plan. Qloo could not find ${plan.missingStops.map((s) => s.label.toLowerCase()).join(" or ")} for this group in ${city}. The other stops are still shown.`
         : "";
-      return { content: [{ type: "text" as const, text: `${NIGHT_NOTE} Night out in ${city}.\n${lines.join("\n")}${missing}` }], structuredContent: { ...plan, mode, note: NIGHT_NOTE } };
+      const scope = plan.dateScope;
+      const dateLine = scope.requestedDate
+        ? `Selected date: ${scope.requestedDate} (${scope.weekday}). Qloo filtered these places for opening on ${scope.weekday} (day of week only). ${scope.limits}`
+        : `No date selected, so Qloo did not filter by opening day. ${scope.limits}`;
+      return { content: [{ type: "text" as const, text: `${NIGHT_NOTE} ${dateLine}\nNight out in ${city}.\n${lines.join("\n")}${missing}` }], structuredContent: { ...plan, mode, note: NIGHT_NOTE } };
     } catch (err) {
       const message = err instanceof QlooError ? err.message : "Something went wrong while asking Qloo. Please try again.";
       return { content: [{ type: "text" as const, text: message }], isError: true };

@@ -168,6 +168,14 @@ test("insights clamps take to the documented maximum of 50", async () => {
   assert.equal(new URL(calls[1]!.url).searchParams.get("take"), "1");
 });
 
+test("insights sends documented filter.hours only when a weekday is requested for a place", async () => {
+  const { qloo, calls } = client({ success: true, results: { entities: [], duration: 0.01 } });
+  await qloo.insights([], "place", { take: 10, location: "Warsaw", hours: "friday" });
+  assert.equal(new URL(calls[0]!.url).searchParams.get("filter.hours"), "friday");
+  await qloo.insights([], "movie", { take: 10, hours: "friday" });
+  assert.equal(new URL(calls[1]!.url).searchParams.get("filter.hours"), null);
+});
+
 test("insights sends filter.location.query only for place", async () => {
   const { qloo, calls } = client({ success: true, results: { entities: [], duration: 0.01 } });
   await qloo.insights([], "place", { take: 10, location: "Warsaw" });
